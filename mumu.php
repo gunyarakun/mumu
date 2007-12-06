@@ -135,6 +135,24 @@ class MuUtil {
     chdir($o);
     return $r;
   }
+  public static function serialize_to_file($obj, $path) {
+    if ($f = @fopen($path, "w")) {
+      if (@fwrite($f, serialize($obj))) {
+        @fclose($f);
+        return true;
+      }
+      @fclose($f);
+    }
+    return false;
+  }
+  public static function unserialize_from_file($path) {
+    if (($c = file_get_contents($path)) !== false) {
+      if (($obj = unserialize($c)) !== false) {
+        return $obj;
+      }
+    }
+    return false;
+  }
 }
 
 class MuValueDoesNotExistException extends Exception
@@ -1376,18 +1394,28 @@ class MuParser {
     $this->spos = $lpos + 2;
   }
 
-  static public function parse_from_file($templatePath) {
+  static public function parse_from_file($templatePath, $useSerialize = true) {
     if (($t = file_get_contents($templatePath)) === false) {
       return false;
     }
-    $p = new MuParser($t, $templatePath);
-    try {
-      list($nl) = $p->_parse(array());
-    } catch (MuParserException $e) {
-      $nl = new MuNodeList();
-      $nl->push($p->make_errornode($e->getMessage()));
+    // check cache
+    $cachePath = $templatePath.'.cache';
+    if ($useSerialize &&
+        file_exists($cachePath) &&
+        filemtime($templatePath) <= filemtime($cachePath)) {
+      $mf = MuUtil::unserialize_from_file($cachePath);
+    } else {
+      $p = new MuParser($t, $templatePath);
+      try {
+        list($nl) = $p->_parse(array());
+      } catch (MuParserException $e) {
+        $nl = new MuNodeList();
+        $nl->push($p->make_errornode($e->getMessage()));
+      }
+      $mf = new MuFile($nl, $p->block_dict, $p->extends, $templatePath);
+      MuUtil::serialize_to_file($mf, $cachePath);
     }
-    return new MuFile($nl, $p->block_dict, $p->extends, $templatePath);
+    return $mf;
   }
 
   static public function parse($templateStr) {
