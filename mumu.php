@@ -187,7 +187,7 @@ class MuContext {
             return 'method call error';
           }
         } else {
-          throw new MuValueDoesNotExistException("Failed lookup for key [${bits[0]}]");
+          throw new MuValueDoesNotExistException("Failed lookup for key [{$bits[0]}]");
         }
         array_shift($bits);
       }
@@ -867,7 +867,7 @@ class MuFilterExpression {
             $val = strval(intval($f));
           } else {
             $d = abs($d);
-            $val = sprintf("%.${d}f", $f);
+            $val = sprintf("%.{$d}f", $f);
           }
           break;
         case 'get_digit':
@@ -888,10 +888,11 @@ class MuFilterExpression {
           break;
         case 'linenumbers':
           $lines = explode("\n", $val);
-          $width = count($lines);
-          for ($i = 0; $i < $lines; $i++) {
-            $lines[i] = sprintf("%${width}d. ", $i + 1).
-                        htmlspecialchars($lines[i], ENT_QUOTES);
+          $count = count($lines);
+          $width = strlen(strval($count));
+          for ($i = 0; $i < $count; $i++) {
+            $lines[$i] = sprintf("%{$width}d. ", $i + 1).
+                        htmlspecialchars($lines[$i], ENT_QUOTES);
           }
           $val = implode("\n", $lines);
           break;
@@ -1000,7 +1001,7 @@ class MuParserException extends Exception
 class MuParser {
   private $template;             // パース前のテンプレート文字列
   private $template_len;         // テンプレート文字列の長さ
-  private $templatePath;         // テンプレートのパス(あれば)
+  private $template_path;         // テンプレートのパス(あれば)
   private $block_dict = array(); // blockの名前 => blockへの参照
   private $extends = false;      // extendsの場合のファイル名
   private $spos = 0;             // 現在パース中の位置
@@ -1019,10 +1020,10 @@ class MuParser {
   const SINGLE_BRACE_END = '}';
   // FIXME: タグの長さである定数2がパーサの中に散らばってます
 
-  function __construct($template, $templatePath = null) {
+  function __construct($template, $template_path = null) {
     $this->template = $template;
     $this->template_len = strlen($template);
-    $this->templatePath = $templatePath;
+    $this->template_path = $template_path;
   }
 
   // "や'でクオートされたものを除いてスペースで分割
@@ -1152,7 +1153,7 @@ class MuParser {
           break;
       }
     }
-    return new MuErrorNode($errorCode, $this->templatePath, $ln);
+    return new MuErrorNode($errorCode, $this->template_path, $ln);
   }
 
   // {% %}の中身をパースして、MuNodeを返す。
@@ -1188,7 +1189,7 @@ class MuParser {
           return $this->make_errornode('invalidparam_include_tag');
         }
         $this->spos = $lpos + 2;
-        $node = new MuIncludeNode($param[1], $this->templatePath);
+        $node = new MuIncludeNode($param[1], $this->template_path);
         break;
       case 'block': // endblock
         // TODO: check params
@@ -1394,25 +1395,25 @@ class MuParser {
     $this->spos = $lpos + 2;
   }
 
-  static public function parse_from_file($templatePath, $useSerialize = true) {
-    if (($t = file_get_contents($templatePath)) === false) {
+  static public function parse_from_file($template_path, $serialize_path = null) {
+    if (($t = file_get_contents($template_path)) === false) {
       return false;
     }
     // check cache
-    $cachePath = $templatePath.'.cache';
+    $cachePath = $template_path.'.cache';
     if ($useSerialize &&
         file_exists($cachePath) &&
-        filemtime($templatePath) <= filemtime($cachePath)) {
+        filemtime($template_path) <= filemtime($cachePath)) {
       $mf = MuUtil::unserialize_from_file($cachePath);
     } else {
-      $p = new MuParser($t, $templatePath);
+      $p = new MuParser($t, $template_path);
       try {
         list($nl) = $p->_parse(array());
       } catch (MuParserException $e) {
         $nl = new MuNodeList();
         $nl->push($p->make_errornode($e->getMessage()));
       }
-      $mf = new MuFile($nl, $p->block_dict, $p->extends, $templatePath);
+      $mf = new MuFile($nl, $p->block_dict, $p->extends, $template_path);
       MuUtil::serialize_to_file($mf, $cachePath);
     }
     return $mf;
