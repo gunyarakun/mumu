@@ -168,7 +168,7 @@ class MuContext {
   }
   // ドット連結表現から値を取り出す
   function resolve($expr) {
-    if (ctype_digit($expr)) {
+    if (is_numeric($expr)) {
       $current = (strpos($expr, '.') === false) ? intval($expr) : floatval($expr);
     } elseif (($expr{0} == "'" || $expr{0} ==  '"') &&
               $expr{0} == $expr{-1}) {
@@ -197,7 +197,7 @@ class MuContext {
   function has_key($key) {
     foreach ($this->dicts as $dict) {
       if (array_key_exists($key, $dict)) {
-        return True;
+        return true;
       }
     }
     return false;
