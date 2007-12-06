@@ -41,21 +41,25 @@ POSSIBILITY OF SUCH DAMAGE.
 // {{ 変数名 }}             : 変数名で置換
 
 // ブロック
-// {% include "filename" %} : テンプレートのインクルード
-// {% extends "filename" %} : テンプレートの拡張
-// {% block blockname %}    : ブロックの始まり
-// {% endblock %}           : ブロックの終わり
-// {% for item in items %}  : 変数itemsからitemを取り出す
-// {% endfor %}             : forの終わり
-// {% cycle val1,val2 %}    : forループの中でval1,val2を交互に出す(表で行ごと背景色とか)
-// {% if cond %} {% else %} : cond条件が満たされたところだけを出力
-// {% endif %}              : ifの終わり
-// {% debug %}              : テンプレートに渡された情報をダンプする
-// {% now "format" %}       : 現在の日付を指定フォーマットで出力します
-// {% filter fil1|fil2 %}   : ブロック内コンテンツをフィルタにかけます
-// {% endfilter %}          : filterの終わり
-// {% firstof var1 var2 %}  : 渡された変数のうち、Falseでない最初の変数
-// {# comment #}            : コメント
+// {% include "filename" %}   : テンプレートのインクルード
+// {% extends "filename" %}   : テンプレートの拡張
+// {% block blockname %}      : ブロックの始まり
+// {% endblock %}             : ブロックの終わり
+// {% for item in items %}    : 変数itemsからitemを取り出す
+// {% endfor %}               : forの終わり
+// {% cycle val1,val2 %}      : forループの中でval1,val2を交互に出す(表で行ごと背景色とか)
+// {% if cond %} {% else %}   : cond条件が満たされたところだけを出力
+// {% endif %}                : ifの終わり
+// {% debug %}                : テンプレートに渡された情報をダンプする
+// {% now "format" %}         : 現在の日付を指定フォーマットで出力します
+// {% filter fil1|fil2 %}     : ブロック内コンテンツをフィルタにかけます
+// {% endfilter %}            : filterの終わり
+// {% firstof var1 var2 %}    : 渡された変数のうち、Falseでない最初の変数
+// {% ifequal var1 var2 %}    : var1 == var2の条件が満たされたら出力
+// {% endifequal %}           : ifequalの終わり
+// {% ifnotequal var1 var2 %} : var1 == var2の条件が満たされたら出力
+// {% endifnotequal %}        : ifnotequalの終わり
+// {# comment #}              : コメント
 
 // パイプ
 // {{ 変数名|パイプ1|パイプ2 }} : 変数をフィルタして出力する
