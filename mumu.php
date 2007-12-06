@@ -39,7 +39,7 @@ class MuUtil {
   public static function redirect($rel_path) {
     $host = $_SERVER['HTTP_HOST'];
     $uri = rtrim(dirname($_SERVER['PHP_SELF']), '/\\');
-    header("Location: http://$host%uri/$rel_path");
+    header("Location: http://$host$uri/$rel_path");
   }
   // simple logic for validation of email address
   public static function validate_email($email, $dns = false, $strict = false/* , $quote = false */) {
