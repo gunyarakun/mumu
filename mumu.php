@@ -1,5 +1,5 @@
 <?php
-// GunyaTemplate (c) Brazil, Inc.
+// mumu (c) Brazil, Inc.
 // originally developed by Tasuku SUENAGA a.k.a. gunyarakun
 /*
 Copyright (c) 2005, the Lawrence Journal-World
@@ -80,7 +80,7 @@ POSSIBILITY OF SUCH DAMAGE.
 // FIXMEを全部直すように。
 // キャッシュ機構とか欲しいね。パース済みの構造をシリアライズする？
 
-class GTContext {
+class MuMuContext {
   // テンプレートに当てはめる値の情報を保持するクラス
   private $dicts;
   const VARIABLE_ATTRIBUTE_SEPARATOR = '.';
@@ -138,13 +138,13 @@ class GTContext {
   }
 }
 
-class GTNode {
+class MuMuNode {
   public function _render() {
     return '';
   }
 }
 
-class GTNodeList {
+class MuMuNodeList {
   private $nodes;
   function __construct() {
     $this->nodes = array();
@@ -162,7 +162,7 @@ class GTNodeList {
 }
 
 // 1つのテンプレートをパースしたもの。
-class GTFile extends GTNode {
+class MuMuFile extends GTNode {
   public $nodelist;        // ファイルをパースしたNodeList
   private $block_dict;      // nodelistの中にあるblock名 => GTBlockNode(の参照)
   private $parent_tfile;    // extendsがある場合の親テンプレート
@@ -176,7 +176,7 @@ class GTFile extends GTNode {
     }
   }
   public function render($raw_context) {
-    return $this->_render(new GTContext($raw_context));
+    return $this->_render(new MuMuContext($raw_context));
   }
   public function _render($context) {
     if ($this->parent_tfile) {
@@ -215,7 +215,7 @@ class GTFile extends GTNode {
   }
 }
 
-class GTTextNode extends GTNode {
+class MuMuTextNode extends GTNode {
   private $text;
   function __construct($text) {
     $this->text = $text;
@@ -225,7 +225,7 @@ class GTTextNode extends GTNode {
   }
 }
 
-class GTVariableNode extends GTNode {
+class MuMuVariableNode extends GTNode {
   private $filter_expression;
   function __construct($filter_expression) {
     $this->filter_expression = $filter_expression;
@@ -235,13 +235,13 @@ class GTVariableNode extends GTNode {
   }
 }
 
-class GTIncludeNode extends GTNode {
+class MuMuIncludeNode extends GTNode {
   private $tplfile;
   function __construct($includePath) {
     // FIXME: セキュリティチェック、無限ループチェック
     if (($this->tplfile = GTParser::parse_from_file($includePath)) === FALSE) {
       // TODO: エラー起こしたテンプレート名を安全に教えてあげる
-      $this->tplfile = new GTTextNode('include error');
+      $this->tplfile = new MuMuTextNode('include error');
     }
   }
   public function _render($context) {
@@ -249,7 +249,7 @@ class GTIncludeNode extends GTNode {
   }
 }
 
-class GTBlockNode extends GTNode {
+class MuMuBlockNode extends GTNode {
   public $name;
   public $nodelist;
   public $parent;
@@ -279,12 +279,12 @@ class GTBlockNode extends GTNode {
     if ($this->parent) {
       $this->parent->add_parent($nodelist);
     } else {
-      $this->parent = new GTBlockNode($this->name, $this->nodelist);
+      $this->parent = new MuMuBlockNode($this->name, $this->nodelist);
     }
   }
 }
 
-class GTCycleNode extends GTNode {
+class MuMuCycleNode extends GTNode {
   private $cyclevars;
   private $cyclevars_len;
   private $variable_name;
@@ -306,7 +306,7 @@ class GTCycleNode extends GTNode {
   }
 }
 
-class GTDebugNode extends GTNode {
+class MuMuDebugNode extends GTNode {
   function _render($context) {
     ob_start();
     echo "Context\n";
@@ -325,7 +325,7 @@ class GTDebugNode extends GTNode {
   }
 }
 
-class GTFilterNode extends GTNode {
+class MuMuFilterNode extends GTNode {
   private $filter_expr;
   private $nodelist;
   function __construct($filter_expr, $nodelist) {
@@ -341,7 +341,7 @@ class GTFilterNode extends GTNode {
   }
 }
 
-class GTForNode extends GTNode {
+class MuMuForNode extends GTNode {
   private $loopvar;
   private $sequence;
   private $reversed;
@@ -357,7 +357,7 @@ class GTForNode extends GTNode {
     if ($context->has_key('forloop')) {
       $parentloop = $context->get('forloop');
     } else {
-      $parentloop = new GTContext();
+      $parentloop = new MuMuContext();
     }
     $context->push();
     if (!($values = $context->resolve($this->sequence))) {
@@ -387,7 +387,7 @@ class GTForNode extends GTNode {
   }
 }
 
-class GTIfNode extends GTNode {
+class MuMuIfNode extends GTNode {
   private $bool_exprs;
   private $nodelist_true;
   private $nodelist_false;
@@ -425,7 +425,7 @@ class GTIfNode extends GTNode {
   }
 }
 
-class GTNowNode extends GTNode {
+class MuMuNowNode extends GTNode {
   private $format_string;
   function __construct($format_string) {
     $this->format_string = $format_string;
@@ -435,13 +435,13 @@ class GTNowNode extends GTNode {
   }
 }
 
-class GTUnknownNode extends GTNode {
+class MuMuUnknownNode extends GTNode {
   public function _render($context) {
     return 'unknown...';
   }
 }
 
-class GTFilterExpression {
+class MuMuFilterExpression {
   private $var;
   private $filters;
 
@@ -506,7 +506,7 @@ class GTFilterExpression {
   }
 }
 
-class GTParser {
+class MuMuParser {
   private $template;             // パース前のテンプレート文字列
   private $template_len;         // テンプレート文字列の長さ
   private $errorStr;             // エラー文字列
@@ -680,7 +680,7 @@ class GTParser {
           $this->errorStr = 'includeのパラメータはファイル名のみです';
           return FALSE;
         }
-        $node = new GTIncludeNode($param[1]);
+        $node = new MuMuIncludeNode($param[1]);
         $spos = $lpos + 2;
         break;
       case 'block': // endblock
@@ -694,7 +694,7 @@ class GTParser {
         }
         $spos = $lpos + 2;
         list($nodelist) = $this->_parse($spos, array('endblock'));
-        $node = new GTBlockNode($blockname, $nodelist);
+        $node = new MuMuBlockNode($blockname, $nodelist);
         $this->block_dict[$blockname] = &$node; // reference
         break;
       case 'for': // endfor
@@ -715,7 +715,7 @@ class GTParser {
         }
         $spos = $lpos + 2;
         list($nodelist) = $this->_parse($spos, array('endfor'));
-        $node = new GTForNode($in[1], $in[3], $reversed, $nodelist);
+        $node = new MuMuForNode($in[1], $in[3], $reversed, $nodelist);
         break;
       case 'cycle':
         // TODO: implement namedCycleNodes
@@ -728,7 +728,7 @@ class GTParser {
           $this->errorStr = 'cycleには,で区切られた文字列が必要です。';
           return FALSE;
         }
-        $node = new GTCycleNode($cyclevars);
+        $node = new MuMuCycleNode($cyclevars);
         $spos = $lpos + 2;
         break;
       case 'if': // else, endif
@@ -770,12 +770,12 @@ class GTParser {
         if ($nexttag == 'else') {
           list($nodelist_false) = $this->_parse($spos, array('endif'));
         } else {
-          $nodelist_false = new GTNodeList();
+          $nodelist_false = new MuMuNodeList();
         }
-        $node = new GTIfNode($boolvars, $nodelist_true, $nodelist_false, $link_type);
+        $node = new MuMuIfNode($boolvars, $nodelist_true, $nodelist_false, $link_type);
         break;
       case 'debug':
-        $node = new GTDebugNode();
+        $node = new MuMuDebugNode();
         $spos = $lpos + 2;
         break;
       case 'now':
@@ -788,7 +788,7 @@ class GTParser {
           $this->errorStr = 'nowの書式文字列は"でくくってください';
           return FALSE;
         }
-        $node = new GTNowNode($param[1]);
+        $node = new MuMuNowNode($param[1]);
         $spos = $lpos + 2;
         break;
       case 'filter': // endfilter
@@ -797,9 +797,9 @@ class GTParser {
           return FALSE;
         }
         $spos = $lpos + 2;
-        $filter_expr = new GTFilterExpression('var|'. $in[1]);
+        $filter_expr = new MuMuFilterExpression('var|'. $in[1]);
         list($nodelist) = $this->_parse($spos, array('endfilter'));
-        $node = new GTFilterNode($filter_expr, $nodelist);
+        $node = new MuMuFilterNode($filter_expr, $nodelist);
         break;
       case 'endblock':
       case 'else':
@@ -810,7 +810,7 @@ class GTParser {
         $spos = $lpos + 2;
         break;
       default:
-        $node = new GTUnknownNode();
+        $node = new MuMuUnknownNode();
         $spos = $lpos + 2;
         break;
     }
@@ -823,8 +823,8 @@ class GTParser {
       return FALSE;
     }
     // TODO: handle empty {{ }}
-    $fil = new GTFilterExpression(substr($this->template, $spos, $lpos - $spos));
-    $node = new GTVariableNode($fil);
+    $fil = new MuMuFilterExpression(substr($this->template, $spos, $lpos - $spos));
+    $node = new MuMuVariableNode($fil);
     $spos = $lpos + 2;
     return $node;
   }
@@ -842,28 +842,28 @@ class GTParser {
       $this->errorStr = 'ファイルが開けません。';
       return FALSE;
     }
-    $p = new GTParser($t);
+    $p = new MuMuParser($t);
     $spos = 0;
     list($nl) = $p->_parse($spos, array());
-    return new GTFile($nl, $p->block_dict, $p->extends);
+    return new MuMuFile($nl, $p->block_dict, $p->extends);
   }
 
   static public function parse($templateStr) {
-    $p = new GTParser($templateStr);
+    $p = new MuMuParser($templateStr);
     $spos = 0;
     list($nl) = $p->_parse($spos, array());
-    return new GTFile($nl, $p->block_dict);
+    return new MuMuFile($nl, $p->block_dict);
   }
 
   private function add_textnode(&$nodelist, &$tspos, &$epos) {
     if ($tspos < $epos) {
-      $nodelist->push(new GTTextNode(
+      $nodelist->push(new MuMuTextNode(
         substr($this->template, $tspos, $epos - $tspos)));
     }
   }
 
   private function _parse(&$spos, $parse_until) {
-    $nl = new GTNodeList();
+    $nl = new MuMuNodeList();
     $tspos = $spos;
     while (true) {
       $spos = strpos($this->template, self::SINGLE_BRACE_START, $spos);
