@@ -89,11 +89,9 @@ class GTNodeList {
 // 1テンプレートファイル。
 class GTFile {
   private $nodelist;        // ファイルをパースしたNodeList
-  private $extends_index;   // nodelistの中でextendsのものの位置
-  private $block_dict;      // nodelistの中にあるblock名 => nodelist内位置
-  function __construct($nodelist, $extends_index, $block_dict) {
+  private $block_dict;      // nodelistの中にあるblock名 => GTBlockNode(の参照)
+  function __construct($nodelist, $block_dict) {
     $this->nodelist = $nodelist;
-    $this->extends_index = $extends_index;
     $this->block_dict = $block_dict;
   }
   function render($context) {
@@ -174,13 +172,14 @@ class GTIncludeNode extends GTNode {
   function __construct($includePath) {
     // FIXME: セキュリティチェック、無限ループチェック
     $p = new GTParser();
+    echo 'uyhyhoyhoy';
     if (($this->tplfile = $p->parse_from_file($includePath)) === FALSE) {
       // TODO: エラー起こしたテンプレート名を安全に教えてあげる
-      $this->tplfile = array(new GTTextNode('include error'));
+      $this->tplfile = new GTTextNode('include error');
     }
   }
   public function render($context) {
-    return $this->tplfile>render($context);
+    return $this->tplfile->render($context);
   }
 }
 
@@ -260,7 +259,6 @@ class GTFilterExpression {
       $f = GTParser::smart_split($fil, ':', True, False);
       array_push($this->filters, $f);
     }
-    var_dump($this->filters);
   }
 
   // TODO: support ignore_failures
@@ -463,8 +461,8 @@ class GTParser {
       return FALSE;
     }
     $in = $this->smart_split(substr($this->template, $spos, $lpos - $spos));
-    echo 'inblock: '. $in[0] .'\n';
     switch ($in[0]) {
+      // TODO: 引数の数チェックを全般
       case 'extends':
         if ($this->extends !== FALSE) {
           $this->errorStr = 'extendsは１つだけしか指定できません。';
@@ -473,7 +471,17 @@ class GTParser {
         $this->extends = $in[1];
         break;
       case 'include':
-        $node = new GTIncludeNode(template_name);
+        if (count($in) != 2) {
+          $this->errorStr = 'includeのパラメータを指定してください';
+          return FALSE;
+        }
+        $param = explode('"', $in[1]);
+        if (count($param) != 3) {
+          // Djangoは変数もOKだけどね
+          $this->errorStr = 'includeのパラメータはファイル名のみです';
+          return FALSE;
+        }
+        $node = new GTIncludeNode($param[1]);
         break;
       case 'block': // endblock
         // TODO: filter block name
@@ -557,7 +565,7 @@ class GTParser {
       $nl = new GTExtendsNode($nl);
     }
     unset($this->template);
-    return new GTFile($nl, $this->extends);
+    return new GTFile($nl, $this->block_dict);
   }
 
   public function parse($templateStr) {
