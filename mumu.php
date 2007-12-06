@@ -1163,6 +1163,9 @@ class MuParser {
     while (true) {
       $this->spos = strpos($this->template, self::SINGLE_BRACE_START, $this->spos);
       if ($this->spos === FALSE) {
+        if (count($parse_until) != 0) {
+          return FALSE;
+        }
         $this->spos = $this->template_len;
         $this->add_textnode($nl, $tspos, $this->template_len);
         return array($nl, null);
