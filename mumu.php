@@ -224,10 +224,8 @@ class MuContext {
   }
 }
 
-class MuNode {
-  public function _render() {
-    return '';
-  }
+interface MuNode {
+  public function _render($context);
 }
 
 class MuNodeList {
@@ -247,7 +245,7 @@ class MuNodeList {
   }
 }
 
-class MuErrorNode extends MuNode {
+class MuErrorNode implements MuNode {
   private $errorMsg;
   private $filename;
   private $linenumber;
@@ -296,16 +294,22 @@ class MuErrorNode extends MuNode {
 }
 
 // 1つのテンプレートをパースしたもの。
-class MuFile extends MuNode {
+class MuFile implements MuNode {
   public $nodelist;        // ファイルをパースしたNodeList
-  private $block_dict;      // nodelistの中にあるblock名 => MuBlockNode(の参照)
-  private $parent_tfile;    // extendsがある場合の親テンプレート
-  function __construct($nodelist, $block_dict, $parentPath = null, $path = null) {
+  private $block_dict;     // nodelistの中にあるblock名 => MuBlockNode(の参照)
+  public $include_paths;   // includeしたファイル名一覧（キャッシュの確認で使う）
+  public $path;            // 自分のファイル名
+  private $parent_path;    // extendsのファイル名
+  private $parent_tfile;   // extendsがある場合の親テンプレート
+  function __construct($nodelist, $block_dict, $include_paths,
+                       $path = null, $parent_path = null) {
     $this->nodelist = $nodelist;
     $this->block_dict = $block_dict;
-    if ($parentPath && $path) {
-      if (($epath = MuUtil::getpath($path, $parentPath)) === false
-          || ($this->parent_tfile = MuParser::parse_from_file($epath)) === false) {
+    $this->include_paths = $include_paths;
+    $this->path = $path;
+    if ($parent_path && $path) {
+      if (($this->parent_path = MuUtil::getpath($path, $parent_path)) === false
+          || ($this->parent_tfile = MuParser::parse_from_file($this->parent_path)) === false) {
         throw new MuParserException('invalid filename specified on extends');
       }
     }
@@ -346,11 +350,27 @@ class MuFile extends MuNode {
     $this->block_dict[$blocknode->name] = $blocknode;
   }
   public function is_child() {
-    return ($parent_tfile !== false);
+    return (isset($this->parent_tfile));
+  }
+  // extendsやincludeしているファイルがキャッシュ生成よりあとに更新されているか
+  public function check_cache_mtime($cache_mtime) {
+    foreach ($this->include_paths as $inc_path) {
+      if ($cache_mtime < filemtime($inc_path)) {
+        return false;
+      }
+    }
+    if (isset($this->parent_path)) {
+      if ($cache_mtime < filemtime($this->parent_path)) {
+        return false;
+      }
+      // check parent
+      return $this->parent_tfile->check_cache_mtime($cache_mtime);
+    }
+    return true;
   }
 }
 
-class MuTextNode extends MuNode {
+class MuTextNode implements MuNode {
   private $text;
   function __construct($text) {
     $this->text = $text;
@@ -360,7 +380,7 @@ class MuTextNode extends MuNode {
   }
 }
 
-class MuVariableNode extends MuNode {
+class MuVariableNode implements MuNode {
   private $filter_expression;
   function __construct($filter_expression) {
     $this->filter_expression = $filter_expression;
@@ -375,10 +395,10 @@ class MuVariableNode extends MuNode {
   }
 }
 
-class MuIncludeNode extends MuNode {
+class MuIncludeNode implements MuNode {
   private $tplfile;
-  function __construct($includePath, $path) {
-    if (($epath = MuUtil::getpath($path, $includePath)) === false
+  function __construct($include_path, $path) {
+    if (($epath = MuUtil::getpath($path, $include_path)) === false
         || ($this->tplfile = MuParser::parse_from_file($epath)) === false) {
       throw new MuParserException('include filename is invalid');
     }
@@ -386,9 +406,12 @@ class MuIncludeNode extends MuNode {
   public function _render($context) {
     return $this->tplfile->_render($context);
   }
+  public function get_tplfile() {
+    return $this->tplfile;
+  }
 }
 
-class MuBlockNode extends MuNode {
+class MuBlockNode implements MuNode {
   public $name;
   public $nodelist;
   public $parent;
@@ -423,7 +446,7 @@ class MuBlockNode extends MuNode {
   }
 }
 
-class MuCycleNode extends MuNode {
+class MuCycleNode implements MuNode {
   private $cyclevars;
   private $cyclevars_len;
   private $variable_name;
@@ -445,7 +468,7 @@ class MuCycleNode extends MuNode {
   }
 }
 
-class MuDebugNode extends MuNode {
+class MuDebugNode implements MuNode {
   function _render($context) {
     ob_start();
     echo "Context\n";
@@ -464,7 +487,7 @@ class MuDebugNode extends MuNode {
   }
 }
 
-class MuFilterNode extends MuNode {
+class MuFilterNode implements MuNode {
   private $filter_expr;
   private $nodelist;
   function __construct($filter_expr, $nodelist) {
@@ -484,7 +507,7 @@ class MuFilterNode extends MuNode {
   }
 }
 
-class MuForNode extends MuNode {
+class MuForNode implements MuNode {
   private $loopvar;
   private $sequence;
   private $reversed;
@@ -532,7 +555,7 @@ class MuForNode extends MuNode {
   }
 }
 
-class MuIfNode extends MuNode {
+class MuIfNode implements MuNode {
   private $bool_exprs;
   private $nodelist_true;
   private $nodelist_false;
@@ -578,7 +601,7 @@ class MuIfNode extends MuNode {
   }
 }
 
-class MuIfEqualNode extends MuNode {
+class MuIfEqualNode implements MuNode {
   private $var1;
   private $var2;
   private $nodelist_true;
@@ -608,7 +631,7 @@ class MuIfEqualNode extends MuNode {
   }
 }
 
-class MuSpacelessNode extends MuNode {
+class MuSpacelessNode implements MuNode {
   private $nodelist;
   function __construct($nodelist) {
     $this->nodelist = $nodelist;
@@ -619,7 +642,7 @@ class MuSpacelessNode extends MuNode {
   }
 }
 
-class MuTemplateTagNode extends MuNode {
+class MuTemplateTagNode implements MuNode {
   private $tagtype;
   // TODO: php5 don't support array as const...
   public static $mapping = array (
@@ -640,7 +663,7 @@ class MuTemplateTagNode extends MuNode {
   }
 }
 
-class MuWidthRatioNode extends MuNode {
+class MuWidthRatioNode implements MuNode {
   private $val_expr;
   private $max_expr;
   private $max_width;
@@ -663,7 +686,7 @@ class MuWidthRatioNode extends MuNode {
   }
 }
 
-class MuNowNode extends MuNode {
+class MuNowNode implements MuNode {
   private $format_string;
   function __construct($format_string) {
     $this->format_string = $format_string;
@@ -673,7 +696,7 @@ class MuNowNode extends MuNode {
   }
 }
 
-class MuFirstOfNode extends MuNode {
+class MuFirstOfNode implements MuNode {
   private $vars;
   function __construct($vars) {
     $this->vars = $vars;
@@ -999,12 +1022,14 @@ class MuParserException extends Exception
 }
 
 class MuParser {
-  private $template;             // パース前のテンプレート文字列
-  private $template_len;         // テンプレート文字列の長さ
-  private $template_path;         // テンプレートのパス(あれば)
-  private $block_dict = array(); // blockの名前 => blockへの参照
-  private $extends = false;      // extendsの場合のファイル名
-  private $spos = 0;             // 現在パース中の位置
+  private $template;                // パース前のテンプレート文字列
+  private $template_len;            // テンプレート文字列の長さ
+  private $template_path;           // テンプレートのパス(あれば)
+  private $serialize_path;          // パース済みのテンプレートをシリアライズしたものの保管path
+  private $block_dict = array();    // blockの名前 => blockへの参照
+  private $extends;                 // extendsのファイル名
+  private $include_paths = array(); // includeしているファイル名の一覧
+  private $spos = 0;                // 現在パース中の位置
 
   # template syntax constants
   const FILTER_SEPARATOR = '|';
@@ -1020,10 +1045,11 @@ class MuParser {
   const SINGLE_BRACE_END = '}';
   // FIXME: タグの長さである定数2がパーサの中に散らばってます
 
-  function __construct($template, $template_path = null) {
+  function __construct($template, $template_path = null, $serialize_path = null) {
     $this->template = $template;
     $this->template_len = strlen($template);
     $this->template_path = $template_path;
+    $this->serialize_path = $serialize_path;
   }
 
   // "や'でクオートされたものを除いてスペースで分割
@@ -1165,7 +1191,7 @@ class MuParser {
     switch ($in[0]) {
       // TODO: 引数の数チェックを全般
       case 'extends':
-        if ($this->extends !== false) {
+        if (isset($this->extends)) {
           return $this->make_errornode('multiple_extends_tag');
         }
         if (count($in) != 2) {
@@ -1190,6 +1216,14 @@ class MuParser {
         }
         $this->spos = $lpos + 2;
         $node = new MuIncludeNode($param[1], $this->template_path);
+        $tplfile = $node->get_tplfile();
+        $this->include_paths[] = $tplfile->path;
+        unset($tplfile->path);
+        // インクルードのインクルード先が更新されたらキャッシュも更新
+        if (isset($tplfile->include_paths)) {
+          $this->include_paths = array_merge($this->include_paths, $tplfile->include_paths);
+          unset($tplfile->include_paths);
+        }
         break;
       case 'block': // endblock
         // TODO: check params
@@ -1395,26 +1429,46 @@ class MuParser {
     $this->spos = $lpos + 2;
   }
 
-  static public function parse_from_file($template_path, $serialize_path = null) {
-    if (($t = file_get_contents($template_path)) === false) {
-      return false;
+  static public function parse_from_file($template_path, $serialize_store = null) {
+    // キャッシュのチェック
+    if (isset($serialize_store)) {
+      if (stristr($serialize_store, 'file://') == 0) {
+        // TODO: check whether absolute path or not
+        if (($spath = realpath(substr($serialize_store, 7))) === false) {
+          return false;
+        }
+        $sfpath = $spath . '/' . basename($template_path) . '.cache';
+        if (file_exists($sfpath)) {
+          if (($sfmtime = filemtime($sfpath)) === false) {
+            return false;
+          }
+          if (filemtime($template_path) <= $sfmtime) {
+            $mf = MuUtil::unserialize_from_file($sfpath);
+            if (!$mf->check_cache_mtime($sfmtime)) {
+              unset($mf);
+            }
+          }
+        }
+      } else {
+        // TODO: now file cache only
+        return false;
+      }
     }
-    // check cache
-    $cachePath = $template_path.'.cache';
-    if ($useSerialize &&
-        file_exists($cachePath) &&
-        filemtime($template_path) <= filemtime($cachePath)) {
-      $mf = MuUtil::unserialize_from_file($cachePath);
-    } else {
-      $p = new MuParser($t, $template_path);
+    if (!isset($mf)) {
+      if (($t = file_get_contents($template_path)) === false) {
+        return false;
+      }
+      $p = new MuParser($t, $template_path, $serialize_path);
       try {
         list($nl) = $p->_parse(array());
       } catch (MuParserException $e) {
         $nl = new MuNodeList();
         $nl->push($p->make_errornode($e->getMessage()));
       }
-      $mf = new MuFile($nl, $p->block_dict, $p->extends, $template_path);
-      MuUtil::serialize_to_file($mf, $cachePath);
+      $mf = new MuFile($nl, $p->block_dict, $p->include_paths, $template_path, $p->extends);
+      if (isset($sfpath)) {
+        MuUtil::serialize_to_file($mf, $sfpath);
+      }
     }
     return $mf;
   }
@@ -1427,7 +1481,7 @@ class MuParser {
       $nl = new MuNodeList();
       $nl->push($p->make_errornode($e->getMessage()));
     }
-    return new MuFile($nl, $p->block_dict);
+    return new MuFile($nl, $p->block_dict, $p->include_paths);
   }
 
   private function add_textnode($nodelist, $tspos, $epos) {
