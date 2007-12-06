@@ -698,7 +698,7 @@ class MuParser {
     // from $spos to linenumber
     // TODO: count on parsing
     $c = substr($this->template, 0, $this->spos);
-    $ln = 0;
+    $ln = 1;
     for ($i = 0; $i < $this->spos; $i++) {
       switch ($c[$i]) {
         case "\r":
