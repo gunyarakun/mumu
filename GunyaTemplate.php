@@ -503,6 +503,10 @@ class GTParser {
   const SINGLE_BRACE_END = '}';
   // FIXME: タグの長さである定数2がパーサの中に散らばってます
 
+  function __construct($template) {
+    $this->template = $template;
+  }
+
   // "や'でクオートされたものを除いてスペースで分割
   // "や'内で"'を使う場合には、\"\'とする。
   // 素直に正規表現で書けばよかったか、まあいっか。
@@ -841,22 +845,20 @@ class GTParser {
     $spos = $lpos + 2;
   }
 
-  public function parse_from_file($templatePath) {
+  static public function parse_from_file($templatePath) {
     if (($t = file_get_contents($templatePath)) === FALSE) {
       $this->errorStr = 'ファイルが開けません。';
       return FALSE;
     }
-    $this->template = $t;
-    $nl = $this->_parse(0, strlen($t));
-    unset($this->template);
-    return new GTFile($nl, $this->block_dict, $this->extends);
+    $p = new GTParser($t);
+    $nl = $p->_parse(0, strlen($t));
+    return new GTFile($nl, $p->block_dict, $p->extends);
   }
 
-  public function parse($templateStr) {
-    $this->template = $templateStr;
-    $nl = $this->_parse(0, strlen($templateStr));
-    unset($this->template);
-    return $nl;
+  static public function parse($templateStr) {
+    $p = new GTParser($templateStr);
+    $nl = $p->_parse(0, strlen($templateStr));
+    return new GTFile($nl, $p->block_dict);
   }
 
   private function _parse($spos, $epos) {
