@@ -1,9 +1,9 @@
 <?php
-// mumu (c) Brazil, Inc.
+// mumu the template engine (c) 2007- Brazil, Inc.
 // originally developed by Tasuku SUENAGA a.k.a. gunyarakun
 /*
 Copyright (c) 2005, the Lawrence Journal-World
-Copyright (c) 2007, Brazil, Inc.
+Copyright (c) 2007-, Brazil, Inc.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -80,7 +80,7 @@ POSSIBILITY OF SUCH DAMAGE.
 // FIXMEを全部直すように。
 // キャッシュ機構とか欲しいね。パース済みの構造をシリアライズする？
 
-class MuMuContext {
+class MuContext {
   // テンプレートに当てはめる値の情報を保持するクラス
   private $dicts;
   const VARIABLE_ATTRIBUTE_SEPARATOR = '.';
@@ -138,13 +138,13 @@ class MuMuContext {
   }
 }
 
-class MuMuNode {
+class MuNode {
   public function _render() {
     return '';
   }
 }
 
-class MuMuNodeList {
+class MuNodeList {
   private $nodes;
   function __construct() {
     $this->nodes = array();
@@ -162,21 +162,21 @@ class MuMuNodeList {
 }
 
 // 1つのテンプレートをパースしたもの。
-class MuMuFile extends GTNode {
+class MuFile extends MuNode {
   public $nodelist;        // ファイルをパースしたNodeList
-  private $block_dict;      // nodelistの中にあるblock名 => GTBlockNode(の参照)
+  private $block_dict;      // nodelistの中にあるblock名 => MuBlockNode(の参照)
   private $parent_tfile;    // extendsがある場合の親テンプレート
   function __construct($nodelist, $block_dict, $parentPath = false) {
     $this->nodelist = $nodelist;
     $this->block_dict = $block_dict;
     if ($parentPath) {
-      if (($this->parent_tfile = GTParser::parse_from_file($parentPath)) === FALSE) {
+      if (($this->parent_tfile = MuParser::parse_from_file($parentPath)) === FALSE) {
         // TODO: エラー起こしたテンプレート名を安全に教えてあげる
       }
     }
   }
   public function render($raw_context) {
-    return $this->_render(new MuMuContext($raw_context));
+    return $this->_render(new MuContext($raw_context));
   }
   public function _render($context) {
     if ($this->parent_tfile) {
@@ -215,7 +215,7 @@ class MuMuFile extends GTNode {
   }
 }
 
-class MuMuTextNode extends GTNode {
+class MuTextNode extends MuNode {
   private $text;
   function __construct($text) {
     $this->text = $text;
@@ -225,7 +225,7 @@ class MuMuTextNode extends GTNode {
   }
 }
 
-class MuMuVariableNode extends GTNode {
+class MuVariableNode extends MuNode {
   private $filter_expression;
   function __construct($filter_expression) {
     $this->filter_expression = $filter_expression;
@@ -235,13 +235,13 @@ class MuMuVariableNode extends GTNode {
   }
 }
 
-class MuMuIncludeNode extends GTNode {
+class MuIncludeNode extends MuNode {
   private $tplfile;
   function __construct($includePath) {
     // FIXME: セキュリティチェック、無限ループチェック
-    if (($this->tplfile = GTParser::parse_from_file($includePath)) === FALSE) {
+    if (($this->tplfile = MuParser::parse_from_file($includePath)) === FALSE) {
       // TODO: エラー起こしたテンプレート名を安全に教えてあげる
-      $this->tplfile = new MuMuTextNode('include error');
+      $this->tplfile = new MuTextNode('include error');
     }
   }
   public function _render($context) {
@@ -249,7 +249,7 @@ class MuMuIncludeNode extends GTNode {
   }
 }
 
-class MuMuBlockNode extends GTNode {
+class MuBlockNode extends MuNode {
   public $name;
   public $nodelist;
   public $parent;
@@ -279,12 +279,12 @@ class MuMuBlockNode extends GTNode {
     if ($this->parent) {
       $this->parent->add_parent($nodelist);
     } else {
-      $this->parent = new MuMuBlockNode($this->name, $this->nodelist);
+      $this->parent = new MuBlockNode($this->name, $this->nodelist);
     }
   }
 }
 
-class MuMuCycleNode extends GTNode {
+class MuCycleNode extends MuNode {
   private $cyclevars;
   private $cyclevars_len;
   private $variable_name;
@@ -306,7 +306,7 @@ class MuMuCycleNode extends GTNode {
   }
 }
 
-class MuMuDebugNode extends GTNode {
+class MuDebugNode extends MuNode {
   function _render($context) {
     ob_start();
     echo "Context\n";
@@ -325,7 +325,7 @@ class MuMuDebugNode extends GTNode {
   }
 }
 
-class MuMuFilterNode extends GTNode {
+class MuFilterNode extends MuNode {
   private $filter_expr;
   private $nodelist;
   function __construct($filter_expr, $nodelist) {
@@ -341,7 +341,7 @@ class MuMuFilterNode extends GTNode {
   }
 }
 
-class MuMuForNode extends GTNode {
+class MuForNode extends MuNode {
   private $loopvar;
   private $sequence;
   private $reversed;
@@ -357,7 +357,7 @@ class MuMuForNode extends GTNode {
     if ($context->has_key('forloop')) {
       $parentloop = $context->get('forloop');
     } else {
-      $parentloop = new MuMuContext();
+      $parentloop = new MuContext();
     }
     $context->push();
     if (!($values = $context->resolve($this->sequence))) {
@@ -387,7 +387,7 @@ class MuMuForNode extends GTNode {
   }
 }
 
-class MuMuIfNode extends GTNode {
+class MuIfNode extends MuNode {
   private $bool_exprs;
   private $nodelist_true;
   private $nodelist_false;
@@ -425,7 +425,7 @@ class MuMuIfNode extends GTNode {
   }
 }
 
-class MuMuNowNode extends GTNode {
+class MuNowNode extends MuNode {
   private $format_string;
   function __construct($format_string) {
     $this->format_string = $format_string;
@@ -435,13 +435,13 @@ class MuMuNowNode extends GTNode {
   }
 }
 
-class MuMuUnknownNode extends GTNode {
+class MuUnknownNode extends MuNode {
   public function _render($context) {
     return 'unknown...';
   }
 }
 
-class MuMuFilterExpression {
+class MuFilterExpression {
   private $var;
   private $filters;
 
@@ -453,11 +453,11 @@ class MuMuFilterExpression {
     // ってする。
     // Djangoのは_で始まったらいけないらしい。
 
-    $fils = GTParser::smart_split(trim($token), '|', False, True);
+    $fils = MuParser::smart_split(trim($token), '|', False, True);
     $this->var = array_shift($fils);
     $this->filters = array();
     foreach ($fils as $fil) {
-      $f = GTParser::smart_split($fil, ':', True, False);
+      $f = MuParser::smart_split($fil, ':', True, False);
       array_push($this->filters, $f);
     }
   }
@@ -506,7 +506,7 @@ class MuMuFilterExpression {
   }
 }
 
-class MuMuParser {
+class MuParser {
   private $template;             // パース前のテンプレート文字列
   private $template_len;         // テンプレート文字列の長さ
   private $errorStr;             // エラー文字列
@@ -641,7 +641,7 @@ class MuMuParser {
     return $fpos;
   }
 
-  // {% %}の中身をパースして、GTNodeを返す。
+  // {% %}の中身をパースして、MuNodeを返す。
   // extendsは頭に書かないといけない
   private function parse_block(&$spos) {
     $spos += 2;
@@ -680,7 +680,7 @@ class MuMuParser {
           $this->errorStr = 'includeのパラメータはファイル名のみです';
           return FALSE;
         }
-        $node = new MuMuIncludeNode($param[1]);
+        $node = new MuIncludeNode($param[1]);
         $spos = $lpos + 2;
         break;
       case 'block': // endblock
@@ -694,7 +694,7 @@ class MuMuParser {
         }
         $spos = $lpos + 2;
         list($nodelist) = $this->_parse($spos, array('endblock'));
-        $node = new MuMuBlockNode($blockname, $nodelist);
+        $node = new MuBlockNode($blockname, $nodelist);
         $this->block_dict[$blockname] = &$node; // reference
         break;
       case 'for': // endfor
@@ -715,7 +715,7 @@ class MuMuParser {
         }
         $spos = $lpos + 2;
         list($nodelist) = $this->_parse($spos, array('endfor'));
-        $node = new MuMuForNode($in[1], $in[3], $reversed, $nodelist);
+        $node = new MuForNode($in[1], $in[3], $reversed, $nodelist);
         break;
       case 'cycle':
         // TODO: implement namedCycleNodes
@@ -728,7 +728,7 @@ class MuMuParser {
           $this->errorStr = 'cycleには,で区切られた文字列が必要です。';
           return FALSE;
         }
-        $node = new MuMuCycleNode($cyclevars);
+        $node = new MuCycleNode($cyclevars);
         $spos = $lpos + 2;
         break;
       case 'if': // else, endif
@@ -741,10 +741,10 @@ class MuMuParser {
         $boolpairs = explode(' and ', $bitstr);
         $boolvars = array();
         if (count($boolpairs) == 1) {
-          $link_type = GTIfNode::LINKTYPE_OR;
+          $link_type = MuIfNode::LINKTYPE_OR;
           $boolpairs = explode(' or ', $bitstr);
         } else {
-          $link_type = GTIfNode::LINKTYPE_AND;
+          $link_type = MuIfNode::LINKTYPE_AND;
           if (in_array(' or ', $bitstr)) {
             $this->errorStr = 'ifでandとorを混ぜることができません。';
             return FALSE;
@@ -770,12 +770,12 @@ class MuMuParser {
         if ($nexttag == 'else') {
           list($nodelist_false) = $this->_parse($spos, array('endif'));
         } else {
-          $nodelist_false = new MuMuNodeList();
+          $nodelist_false = new MuNodeList();
         }
-        $node = new MuMuIfNode($boolvars, $nodelist_true, $nodelist_false, $link_type);
+        $node = new MuIfNode($boolvars, $nodelist_true, $nodelist_false, $link_type);
         break;
       case 'debug':
-        $node = new MuMuDebugNode();
+        $node = new MuDebugNode();
         $spos = $lpos + 2;
         break;
       case 'now':
@@ -788,7 +788,7 @@ class MuMuParser {
           $this->errorStr = 'nowの書式文字列は"でくくってください';
           return FALSE;
         }
-        $node = new MuMuNowNode($param[1]);
+        $node = new MuNowNode($param[1]);
         $spos = $lpos + 2;
         break;
       case 'filter': // endfilter
@@ -797,9 +797,9 @@ class MuMuParser {
           return FALSE;
         }
         $spos = $lpos + 2;
-        $filter_expr = new MuMuFilterExpression('var|'. $in[1]);
+        $filter_expr = new MuFilterExpression('var|'. $in[1]);
         list($nodelist) = $this->_parse($spos, array('endfilter'));
-        $node = new MuMuFilterNode($filter_expr, $nodelist);
+        $node = new MuFilterNode($filter_expr, $nodelist);
         break;
       case 'endblock':
       case 'else':
@@ -810,7 +810,7 @@ class MuMuParser {
         $spos = $lpos + 2;
         break;
       default:
-        $node = new MuMuUnknownNode();
+        $node = new MuUnknownNode();
         $spos = $lpos + 2;
         break;
     }
@@ -823,8 +823,8 @@ class MuMuParser {
       return FALSE;
     }
     // TODO: handle empty {{ }}
-    $fil = new MuMuFilterExpression(substr($this->template, $spos, $lpos - $spos));
-    $node = new MuMuVariableNode($fil);
+    $fil = new MuFilterExpression(substr($this->template, $spos, $lpos - $spos));
+    $node = new MuVariableNode($fil);
     $spos = $lpos + 2;
     return $node;
   }
@@ -842,28 +842,28 @@ class MuMuParser {
       $this->errorStr = 'ファイルが開けません。';
       return FALSE;
     }
-    $p = new MuMuParser($t);
+    $p = new MuParser($t);
     $spos = 0;
     list($nl) = $p->_parse($spos, array());
-    return new MuMuFile($nl, $p->block_dict, $p->extends);
+    return new MuFile($nl, $p->block_dict, $p->extends);
   }
 
   static public function parse($templateStr) {
-    $p = new MuMuParser($templateStr);
+    $p = new MuParser($templateStr);
     $spos = 0;
     list($nl) = $p->_parse($spos, array());
-    return new MuMuFile($nl, $p->block_dict);
+    return new MuFile($nl, $p->block_dict);
   }
 
   private function add_textnode(&$nodelist, &$tspos, &$epos) {
     if ($tspos < $epos) {
-      $nodelist->push(new MuMuTextNode(
+      $nodelist->push(new MuTextNode(
         substr($this->template, $tspos, $epos - $tspos)));
     }
   }
 
   private function _parse(&$spos, $parse_until) {
-    $nl = new MuMuNodeList();
+    $nl = new MuNodeList();
     $tspos = $spos;
     while (true) {
       $spos = strpos($this->template, self::SINGLE_BRACE_START, $spos);
