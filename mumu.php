@@ -217,14 +217,14 @@ class MuNodeList {
     $this->nodes = array();
   }
   public function _render($context) {
-    $bits = array();
+    $r = '';
     foreach ($this->nodes as $node) {
-      array_push($bits, $node->_render($context));
+      $r .= $node->_render($context);
     }
-    return implode('', $bits);
+    return $r;
   }
   public function push($node) {
-    array_push($this->nodes, $node);
+    $this->nodes[] = $node;
   }
 }
 
@@ -506,7 +506,7 @@ class MuForNode extends MuNode {
         'parentloop' => $parentloop
       ));
       $context->set($this->loopvar, $values[$i]);
-      array_push($rnodelist, $this->nodelist_loop->_render($context));
+      $rnodelist[] = $this->nodelist_loop->_render($context);
     }
     $context->pop();
     return implode('', $rnodelist);
@@ -733,7 +733,7 @@ class MuFilterExpression {
     foreach ($fils as $fil) {
       $f = MuParser::smart_split($fil, ':', True, false);
       if (in_array($f[0], self::$valid_filternames)) {
-        array_push($this->filters, $f);
+        $this->filters[] = $f;
       }
     }
   }
@@ -863,7 +863,7 @@ class MuFilterExpression {
           $paras = preg_split('/\n{2,}/', $val);
           $ret = array();
           foreach ($paras as $p) {
-            array_push($ret, '<p>'. nl2br(trim($p)) .'</p>');
+            $ret[] = '<p>'. nl2br(trim($p)) .'</p>';
           }
           $val = implode("\n\n", $ret);
           break;
@@ -891,7 +891,7 @@ class MuFilterExpression {
           $sval_len = strlen($sval);
           $val = array();
           for ($i = 0; $i < $sval_len; $i++) {
-            array_push($val, $sval[$i]);
+            $val[] = $sval[$i];
           }
           break;
         case 'pprint':
@@ -1090,7 +1090,7 @@ class MuParser {
               break;
             default:
               if ($buf != '') {
-                array_push($ret, $buf);
+                $ret[] = $buf;
                 $buf = '';
               }
               break;
@@ -1102,7 +1102,7 @@ class MuParser {
       }
     }
     if ($mode == 'n' && $buf != '') {
-      array_push($ret, $buf);
+      $ret[] = $buf;
     }
     return $ret;
   }
@@ -1238,9 +1238,9 @@ class MuParser {
             if ($not != 'not') {
               return $this->make_errornode('invalidparam_if_tag');
             }
-            array_push($boolvars, array(True, $boolvar));
+            $boolvars[] = array(True, $boolvar);
           } else {
-            array_push($boolvars, array(false, $boolpair));
+            $boolvars[] = array(false, $boolpair);
           }
         }
         $this->spos = $lpos + 2;
@@ -1621,7 +1621,7 @@ class MuErrorHandler {
   {
     $pargs = array();
     foreach($args as $arg) {
-      array_push($pargs, self::getArgument($arg));
+      $pargs[] = self::getArgument($arg);
     }
     return $pargs;
   }
@@ -1639,7 +1639,7 @@ class MuErrorHandler {
         $pargs = array();
         foreach ($arg as $key => $value) {
           if (!$recursion) {
-            array_push($pargs, self::getArgument($key, false). ' => '. self::getArgument($value, false));
+            $pargs[] = self::getArgument($key, false). ' => '. self::getArgument($value, false);
           }
         }
         return 'array('. implode(', ', $pargs) . ')';
@@ -1682,16 +1682,16 @@ class MuErrorHandler {
           $trace .= implode(', ', self::getArguments($bt['args']));
         }
         $trace .= ')';
-        array_push($p['backtrace'], $trace);
+        $p['backtrace'][] = $trace;
       } elseif (isset($bt['function'])) {
         $trace = 'in function '.$bt['function'].'(';
         if (isset($bt['args'])) {
           $trace .= implode(', ', self::getArguments($bt['args']));
         }
         $trace .= ')';
-        array_push($p['backtrace'], $trace);
+        $p['backtrace'][] = $trace;
       } else {
-        array_push($p['backtrace'], 'unknown');
+        $p['backtrace'][] = 'unknown';
       }
     }
     switch ($p['errno']) {
