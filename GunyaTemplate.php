@@ -522,7 +522,17 @@ class GTParser {
           $this->errorStr = 'extendsは１つだけしか指定できません。';
           return FALSE;
         }
-        $this->extends = $in[1];
+        if (count($in) != 2) {
+          $this->errorStr = 'extendsのパラメータを指定してください';
+          return FALSE;
+        }
+        $param = explode('"', $in[1]);
+        if (count($param) != 3) {
+          // Djangoは変数もOKだけどね
+          $this->errorStr = 'extendsのパラメータはファイル名のみです';
+          return FALSE;
+        }
+        $this->extends = $param[1];
         $spos = $lpos + 2;
         break;
       case 'include':
@@ -677,8 +687,5 @@ class GTParser {
     }
     return $nl;
   }
-}
-
-class GunyaTemplate {
 }
 ?>
