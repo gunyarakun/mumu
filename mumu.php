@@ -136,11 +136,9 @@ class MuContext {
     foreach ($this->dicts as $dict) {
       if (array_key_exists($key, $dict)) {
         return $dict[$key];
-      } else {
-        throw new MuValueDoesNotExistException("Failed lookup for key [$key]");
       }
     }
-    return false;
+    throw new MuValueDoesNotExistException("Failed lookup for key [$key]");
   }
   function set($key, $value) {
     $this->dicts[0][$key] = $value;
@@ -437,6 +435,7 @@ class MuForNode extends MuNode {
     try {
       $values = $context->resolve($this->sequence);
     } catch (MuValueDoesNotExistException $e) {
+      echo "gya-i ".$this->sequence."\n";
       $values = array();
     }
     if (!is_array($values)) {
