@@ -485,7 +485,7 @@ class MuIfNode extends MuNode {
         try {
           $value = $context->resolve($bool_expr);
         } catch (MuValueDoesNotExistException $e) {
-          $value = '';
+          $value = false;
         }
         if (($value && !$ifnot) || ($ifnot && !$value)) {
           return $this->nodelist_true->_render($context);
@@ -498,7 +498,7 @@ class MuIfNode extends MuNode {
         try {
           $value = $context->resolve($bool_expr);
         } catch (MuValueDoesNotExistException $e) {
-          $value = '';
+          $value = false;
         }
         if (!(($value && !$ifnot) || ($ifnot && !$value))) {
           return $this->nodelist_false->_render($context);
