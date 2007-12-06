@@ -168,6 +168,7 @@ class MuContext {
   }
   // ドット連結表現から値を取り出す
   function resolve($expr) {
+    // TODO: ここのチェックやexplodeってパース時に事前にやっておいたらええんとちゃう？
     if (is_numeric($expr)) {
       $current = (strpos($expr, '.') === false) ? intval($expr) : floatval($expr);
     } elseif (($expr{0} == "'" || $expr{0} ==  '"') &&
@@ -533,8 +534,10 @@ class MuForNode implements MuNode {
     if (!is_array($values)) {
       $values = array($value);
     }
+    if ($this->reversed) {
+      $values = array_reverse($values);
+    }
     $len_values = count($values);
-    // FIXME: $this->reversed
     $rnodelist = array();
     for ($i = 0; $i < $len_values; $i++) {
       $context->set('forloop', array(
@@ -1243,7 +1246,7 @@ class MuParser {
         }
         if (count($in) == 5) {
           if ($in[4] == 'reversed') {
-            $reversed = True;
+            $reversed = true;
           } else {
             return $this->make_errornode('invalidparam_for_tag');
           }
