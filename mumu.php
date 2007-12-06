@@ -41,30 +41,31 @@ POSSIBILITY OF SUCH DAMAGE.
 // {{ 変数名 }}             : 変数名で置換
 
 // ブロック
-// {% include "filename" %}   : テンプレートのインクルード
-// {% extends "filename" %}   : テンプレートの拡張
-// {% block blockname %}      : ブロックの始まり
-// {% endblock %}             : ブロックの終わり
-// {% for item in items %}    : 変数itemsからitemを取り出す
-// {% endfor %}               : forの終わり
-// {% cycle val1,val2 %}      : forループの中でval1,val2を交互に出す(表で行ごと背景色とか)
-// {% if cond %} {% else %}   : cond条件が満たされたところだけを出力
-// {% endif %}                : ifの終わり
-// {% debug %}                : テンプレートに渡された情報をダンプする
-// {% now "format" %}         : 現在の日付を指定フォーマットで出力します
-// {% filter fil1|fil2 %}     : ブロック内コンテンツをフィルタにかけます
-// {% endfilter %}            : filterの終わり
-// {% firstof var1 var2 %}    : 渡された変数のうち、Falseでない最初の変数
-// {% ifequal var1 var2 %}    : var1 == var2の条件が満たされたら出力
-// {% endifequal %}           : ifequalの終わり
-// {% ifnotequal var1 var2 %} : var1 == var2の条件が満たされたら出力
-// {% endifnotequal %}        : ifnotequalの終わり
-// {% spaceless %}            : タグの間のスペースを詰めます
-// {% endspaceless %}         : spacelessの終わり
-// {% templatetag tagname %}  : templateの構成に使われる文字字体を出力しますS
-// {% comment %}              : コメントです。出力されません。
-// {% endcomment %}           : コメントの終わりです。
-// {# comment #}              : コメント
+// {% include "filename" %}     : テンプレートのインクルード
+// {% extends "filename" %}     : テンプレートの拡張
+// {% block blockname %}        : ブロックの始まり
+// {% endblock %}               : ブロックの終わり
+// {% for item in items %}      : 変数itemsからitemを取り出す
+// {% endfor %}                 : forの終わり
+// {% cycle val1,val2 %}        : forループの中でval1,val2を交互に出す(表で行ごと背景色とか)
+// {% if cond %} {% else %}     : cond条件が満たされたところだけを出力
+// {% endif %}                  : ifの終わり
+// {% debug %}                  : テンプレートに渡された情報をダンプする
+// {% now "format" %}           : 現在の日付を指定フォーマットで出力します
+// {% filter fil1|fil2 %}       : ブロック内コンテンツをフィルタにかけます
+// {% endfilter %}              : filterの終わり
+// {% firstof var1 var2 %}      : 渡された変数のうち、Falseでない最初の変数
+// {% ifequal var1 var2 %}      : var1 == var2の条件が満たされたら出力
+// {% endifequal %}             : ifequalの終わり
+// {% ifnotequal var1 var2 %}   : var1 == var2の条件が満たされたら出力
+// {% endifnotequal %}          : ifnotequalの終わり
+// {% spaceless %}              : タグの間のスペースを詰めます
+// {% endspaceless %}           : spacelessの終わり
+// {% templatetag tagname %}    : templateの構成に使われる文字字体を出力します
+// {% comment %}                : コメントです。出力されません。
+// {% endcomment %}             : コメントの終わりです。
+// {% widthratio val max mul %} : (val / max) * mulを出力します
+// {# comment  #}               : コメント
 
 // パイプ
 // {{ 変数名|パイプ1|パイプ2 }} : 変数をフィルタして出力する
@@ -587,6 +588,29 @@ class MuTemplateTagNode extends MuNode {
   }
 }
 
+class MuWidthRatioNode extends MuNode {
+  private $val_expr;
+  private $max_expr;
+  private $max_width;
+  function __construct($val_expr, $max_expr, $max_width) {
+    $this->val_expr = $val_expr;
+    $this->max_expr = $max_expr;
+    $this->max_width = $max_width;
+  }
+  public function _render($context) {
+    try {
+      $value = $context->resolve($this->val_expr);
+      $maxvalue = $context->resolve($this->max_expr);
+    } catch (MuValueDoesNotExistException $e) {
+      return '';
+    }
+    $value = floatval($value);
+    $maxvalue = floatval($maxvalue);
+    $ratio = ($value / $maxvalue) * $this->max_width;
+    return strval(intval(round($ratio)));
+  }
+}
+
 class MuNowNode extends MuNode {
   private $format_string;
   function __construct($format_string) {
@@ -1050,6 +1074,17 @@ class MuParser {
         $this->spos = $lpos + 2;
         // TODO: not parse but skip
         $this->_parse(array('endcomment'));
+        break;
+      case 'widthratio':
+        if (count($in) != 4) {
+          return $this->make_errornode('numofparam_widthratio_tag');
+        }
+        if (!ctype_digit($in[3])) {
+          return $this->make_errornode('invalidparam_widthratio_tag');
+        }
+        $this->spos = $lpos + 2;
+        // MEMO: $in[3]はfloatかもしらんがな…
+        $node = new MuWidthRatioNode($in[1], $in[2], intval($in[3]));
         break;
       case 'endblock':
       case 'else':
