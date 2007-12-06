@@ -1463,7 +1463,7 @@ class MuParser {
     $this->spos = $lpos + 2;
   }
 
-  static public function parse_from_file($template_path, $serialize_store = null) {
+  static public function parse_from_file($template_path, $serialize_store = null, $remake_cache = true) {
     // キャッシュのチェック
     if (isset($serialize_store)) {
       if (stristr($serialize_store, 'file://') == 0) {
@@ -1473,13 +1473,17 @@ class MuParser {
         }
         $sfpath = $spath . '/' . basename($template_path) . '.cache';
         if (file_exists($sfpath)) {
-          if (($sfmtime = filemtime($sfpath)) === false) {
-            return false;
-          }
-          if (filemtime($template_path) <= $sfmtime) {
+          if (!$remake_cache) {
             $mf = MuInternal::unserialize_from_file($sfpath);
-            if (!$mf->check_cache_mtime($sfmtime)) {
-              unset($mf);
+          } else {
+            if (($sfmtime = filemtime($sfpath)) === false) {
+              return false;
+            }
+            if (filemtime($template_path) <= $sfmtime) {
+              $mf = MuInternal::unserialize_from_file($sfpath);
+              if (!$mf->check_cache_mtime($sfmtime)) {
+                unset($mf);
+              }
             }
           }
         }
