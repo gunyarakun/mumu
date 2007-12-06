@@ -936,7 +936,6 @@ class MuFilterExpression {
           break;
         case 'urllizetrunc':
           $limit = intval($fil[1]);
-          var_dump($limit);
           $val = preg_replace('/https?:\/\/[-_.!~*\'a-zA-Z0-9;\/?:@&=+\$,%#]+/e','\'<a href="\\0" target="_blank">\'.substr(\'\\0\', 0, $limit).\'</a>\'', $val);
           break;
         case 'wordcount':
