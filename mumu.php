@@ -1026,7 +1026,6 @@ class MuParser {
   private $template;                // パース前のテンプレート文字列
   private $template_len;            // テンプレート文字列の長さ
   private $template_path;           // テンプレートのパス(あれば)
-  private $serialize_path;          // パース済みのテンプレートをシリアライズしたものの保管path
   private $block_dict = array();    // blockの名前 => blockへの参照
   private $extends;                 // extendsのファイル名
   private $include_paths = array(); // includeしているファイル名の一覧
@@ -1046,11 +1045,10 @@ class MuParser {
   const SINGLE_BRACE_END = '}';
   // FIXME: タグの長さである定数2がパーサの中に散らばってます
 
-  function __construct($template, $template_path = null, $serialize_path = null) {
+  function __construct($template, $template_path = null) {
     $this->template = $template;
     $this->template_len = strlen($template);
     $this->template_path = $template_path;
-    $this->serialize_path = $serialize_path;
   }
 
   // "や'でクオートされたものを除いてスペースで分割
@@ -1460,7 +1458,7 @@ class MuParser {
       if (($t = file_get_contents($template_path)) === false) {
         return false;
       }
-      $p = new MuParser($t, $template_path, $serialize_path);
+      $p = new MuParser($t, $template_path);
       try {
         list($nl) = $p->_parse(array());
       } catch (MuParserException $e) {
