@@ -60,6 +60,9 @@
 // forloop.parentloop  : 入れ子のループの場合、一つ上のループを表します
 // block.super         : 親テンプレートのblockの中身を取り出す。内容を追加する場合に便利。
 
+// メモ
+// find_endtagsは見つけ次第parseもして、$spos動かしてもいいんじゃね！？
+
 class GTContext {
   // テンプレートに当てはめる値の情報を保持するクラス
   private $dicts;
@@ -110,6 +113,9 @@ class GTContext {
   }
   function pop() {
     array_shift($this->dicts);
+  }
+  function update($other_array) {
+    array_unshift($this->dicts, $other_array);
   }
 }
 
@@ -288,6 +294,19 @@ class GTDebugNode extends GTNode {
 }
 
 class GTFilterNode extends GTNode {
+  private $filter_expr;
+  private $nodelist;
+  function __construct($filter_expr, $nodelist) {
+    $this->filter_expr = $filter_expr;
+    $this->nodelist = $nodelist;
+  }
+  function _render($context) {
+    $output = $this->nodelist->_render($context);
+    $context->update(array('var' => $output));
+    $filtered = $this->filter_expr->resolve($context);
+    $context->pop();
+    return $filtered;
+  }
 }
 
 class GTForNode extends GTNode {
@@ -332,7 +351,6 @@ class GTForNode extends GTNode {
       array_push($rnodelist, $this->nodelist_loop->_render($context));
     }
     $context->pop();
-    var_dump($rnodelist);
     return implode('', $rnodelist);
   }
 }
@@ -773,9 +791,19 @@ class GTParser {
         $node = new GTNowNode($param[1]);
         $spos = $lpos + 2;
         break;
-      case 'filter':
-        // TODO: implement
-        $spos = $lpos + 2;
+      case 'filter': // endfilter
+        if (count($in) != 2) {
+          $this->errorStr = 'filterのパラメータがありません。';
+          return FALSE;
+        }
+        $lpos += 2;
+        if ((list($bepos, $blpos) = $this->find_endtags($lpos, $epos, array('endfilter'))) === FALSE) {
+          return FALSE;
+        }
+        $filter_expr = new GTFilterExpression('var|'. $in[1]);
+        $nodelist = $this->_parse($lpos, $bepos);
+        $node = new GTFilterNode($filter_expr, $nodelist);
+        $spos = $blpos;
         break;
       default:
         $node = new GTUnknownNode();
