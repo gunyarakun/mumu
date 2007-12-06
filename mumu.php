@@ -1474,17 +1474,17 @@ class MuParser {
         $sfpath = $spath . '/' . basename($template_path) . '.cache';
         if (file_exists($sfpath)) {
           if (!$remake_cache) {
+            return MuInternal::unserialize_from_file($sfpath);
+          }
+          if (($sfmtime = filemtime($sfpath)) === false) {
+            return false;
+          }
+          if (filemtime($template_path) <= $sfmtime) {
             $mf = MuInternal::unserialize_from_file($sfpath);
-          } else {
-            if (($sfmtime = filemtime($sfpath)) === false) {
-              return false;
+            if ($mf->check_cache_mtime($sfmtime)) {
+              return $mf;
             }
-            if (filemtime($template_path) <= $sfmtime) {
-              $mf = MuInternal::unserialize_from_file($sfpath);
-              if (!$mf->check_cache_mtime($sfmtime)) {
-                unset($mf);
-              }
-            }
+            unset($mf);
           }
         }
       } else {
@@ -1493,22 +1493,20 @@ class MuParser {
       }
     }
     // キャッシュになかったら生成
-    if (!isset($mf)) {
-      if (($t = file_get_contents($template_path)) === false) {
-        return false;
-      }
-      $p = new MuParser($t, $template_path);
-      try {
-        list($nl) = $p->_parse(array());
-      } catch (MuParserException $e) {
-        $nl = new MuNodeList();
-        $nl->push($p->make_errornode($e->getMessage()));
-      }
-      $mf = new MuFile($nl, $p->block_dict, $p->include_paths, $template_path, $p->extends);
-      // 指定したキャッシュに保存
-      if (isset($sfpath)) {
-        MuInternal::serialize_to_file($mf, $sfpath);
-      }
+    if (($t = file_get_contents($template_path)) === false) {
+      return false;
+    }
+    $p = new MuParser($t, $template_path);
+    try {
+      list($nl) = $p->_parse(array());
+    } catch (MuParserException $e) {
+      $nl = new MuNodeList();
+      $nl->push($p->make_errornode($e->getMessage()));
+    }
+    $mf = new MuFile($nl, $p->block_dict, $p->include_paths, $template_path, $p->extends);
+    // 指定したキャッシュに保存
+    if (isset($sfpath)) {
+      MuInternal::serialize_to_file($mf, $sfpath);
     }
     return $mf;
   }
