@@ -976,7 +976,6 @@ class MuParser {
         $this->spos = $lpos + 2;
         $negate = ($in[0] == 'ifnotequal');
         $endtag = 'end' . $in[0];
-        echo $endtag;
         list($nodelist_true, $nexttag) =
           $this->_parse(array('else', $endtag));
         if ($nexttag == 'else') {
