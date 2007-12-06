@@ -596,6 +596,7 @@ class MuParser {
     $epos = strlen($text);
     $ret = array();
     $mode = 'n';  // 'n': not quoted, 'd': in ", 'q': in '
+    $buf = '';
     for ($spos = 0; $spos < $epos; $spos++) {
       $a = $text[$spos];
       switch ($a) {
@@ -879,7 +880,6 @@ class MuParser {
   private function parse_variable() {
     $this->spos += 2;
     if (($lpos = $this->find_closetag(self::VARIABLE_TAG_END)) === FALSE) {
-      echo "uhyohyo\n";
       return FALSE;
     }
     // TODO: handle empty {{ }}
@@ -972,6 +972,254 @@ class MuParser {
           $this->spos += 1;
       }
     }
+  }
+}
+
+class MuErrorHandler {
+
+  private static $errorType = array (
+    E_ERROR             => 'ERROR',
+    E_WARNING           => 'WARNING',
+    E_PARSE             => 'PARSING ERROR',
+    E_NOTICE            => 'NOTICE',
+    E_CORE_ERROR        => 'CORE ERROR',
+    E_CORE_WARNING      => 'CORE WARNING',
+    E_COMPILE_ERROR     => 'COMPILE ERROR',
+    E_COMPILE_WARNING   => 'COMPILE WARNING',
+    E_USER_ERROR        => 'USER ERROR',
+    E_USER_WARNING      => 'USER WARNING',
+    E_USER_NOTICE       => 'USER NOTICE',
+    E_STRICT            => 'STRICT NOTICE',
+    E_RECOVERABLE_ERROR => 'RECOVERABLE ERROR'
+  );
+
+  // error page html
+  const BACKTRACE_HTML = '
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html lang="en">
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+  <meta name="robots" content="NONE,NOARCHIVE" />
+  <title>{{ error_type }}</title>
+  <style type="text/css">
+    html * { padding:0; margin:0; }
+    body * { padding:10px 20px; }
+    body * * { padding:0; }
+    body { font:small sans-serif; }
+    body>div { border-bottom:1px solid #ddd; }
+    h1 { font-weight:normal; }
+    h2 { margin-bottom:.8em; }
+    h2 span { font-size:80%; color:#666; font-weight:normal; }
+    h3 { margin:1em 0 .5em 0; }
+    h4 { margin:0 0 .5em 0; font-weight: normal; }
+    table { border:1px solid #ccc; border-collapse: collapse; width:100%; background:white; }
+    tbody td, tbody th { vertical-align:top; padding:2px 3px; }
+    thead th { padding:1px 6px 1px 3px; background:#fefefe; text-align:left; font-weight:normal; font-size:11px; border:1px solid #ddd; }
+    tbody th { width:12em; text-align:right; color:#666; padding-right:.5em; }
+    table.vars { margin:5px 0 2px 40px; }
+    table.vars td, table.req td { font-family:monospace; }
+    table td.code { width:100%; }
+    table td.code div { overflow:hidden; }
+    table.source th { color:#666; }
+    table.source td { font-family:monospace; white-space:pre; border-bottom:1px solid #eee; }
+    ul.traceback { list-style-type:none; }
+    ul.traceback li.frame { margin-bottom:1em; }
+    div.context { margin: 10px 0; }
+    div.context ol { padding-left:30px; margin:0 10px; list-style-position: inside; }
+    div.context ol li { font-family:monospace; white-space:pre; color:#666; cursor:pointer; }
+    div.context ol.context-line li { color:black; background-color:#ccc; }
+    div.context ol.context-line li span { float: right; }
+    div.commands { margin-left: 40px; }
+    div.commands a { color:black; text-decoration:none; }
+    #summary { background: #ffc; }
+    #summary h2 { font-weight: normal; color: #666; }
+    #explanation { background:#eee; }
+    #template, #template-not-exist { background:#f6f6f6; }
+    #template-not-exist ul { margin: 0 0 0 20px; }
+    #traceback { background:#eee; }
+    #requestinfo { background:#f6f6f6; padding-left:120px; }
+    #summary table { border:none; background:transparent; }
+    #requestinfo h2, #requestinfo h3 { position:relative; margin-left:-100px; }
+    #requestinfo h3 { margin-bottom:-1em; }
+    .error { background: #ffc; }
+    .specific { color:#cc3300; font-weight:bold; }
+  </style>
+  <script type="text/javascript">
+  //<!--
+    function getElementsByClassName(oElm, strTagName, strClassName){
+        // Written by Jonathan Snook, http://www.snook.ca/jon; Add-ons by Robert Nyman, http://www.robertnyman.com
+        var arrElements = (strTagName == "*" && document.all)? document.all :
+        oElm.getElementsByTagName(strTagName);
+        var arrReturnElements = new Array();
+        strClassName = strClassName.replace(/\-/g, "\-");
+        var oRegExp = new RegExp("(^|\s)" + strClassName + "(\s|$)");
+        var oElement;
+        for(var i=0; i<arrElements.length; i++){
+            oElement = arrElements[i];
+            if(oRegExp.test(oElement.className)){
+                arrReturnElements.push(oElement);
+            }
+        }
+        return (arrReturnElements)
+    }
+    function hideAll(elems) {
+      for (var e = 0; e < elems.length; e++) {
+        elems[e].style.display = \'none\';
+      }
+    }
+    window.onload = function() {
+      hideAll(getElementsByClassName(document, \'table\', \'vars\'));
+      hideAll(getElementsByClassName(document, \'ol\', \'pre-context\'));
+      hideAll(getElementsByClassName(document, \'ol\', \'post-context\'));
+      hideAll(getElementsByClassName(document, \'div\', \'pastebin\'));
+    }
+    function toggle() {
+      for (var i = 0; i < arguments.length; i++) {
+        var e = document.getElementById(arguments[i]);
+        if (e) {
+          e.style.display = e.style.display == \'none\' ? \'block\' : \'none\';
+        }
+      }
+      return false;
+    }
+    function varToggle(link, id) {
+      toggle(\'v\' + id);
+      var s = link.getElementsByTagName(\'span\')[0];
+      var uarr = String.fromCharCode(0x25b6);
+      var darr = String.fromCharCode(0x25bc);
+      s.innerHTML = s.innerHTML == uarr ? darr : uarr;
+      return false;
+    }
+    function switchPastebinFriendly(link) {
+      s1 = "Switch to copy-and-paste view";
+      s2 = "Switch back to interactive view";
+      link.innerHTML = link.innerHTML == s1 ? s2 : s1;
+      toggle(\'browserTraceback\', \'pastebinTraceback\');
+      return false;
+    }
+    //-->
+  </script>
+</head>
+<body>
+<div id="summary">
+  <h1>{{ error_type|escape }}</h1>
+  <h2>{{ error_str|escape }}</h2>
+  <table class="meta">
+    <!--tr>
+      <th>Request Method:</th>
+      <td>{{ request.method|escape }}</td>
+    </tr>
+    <tr>
+      <th>Request URL:</th>
+      <td>{{ request.url|escape }}</td>
+    </tr>
+    <tr>
+      <th>Exception Type:</th>
+      <td>{{ exception.type }}</td>
+    </tr-->
+    <tr>
+      <th>Exception Value:</th>
+      <td>{{ error_str }}</td>
+    </tr>
+    <tr>
+      <th>Exception Location:</th>
+      <td>{{ error_file|escape }}, line {{ error_line }}</td>
+      <!-- TODO: get function name -->
+    </tr>
+  </table>
+</div>
+
+
+</body>
+';
+
+  static public function getArguments(&$args)
+  {
+    $pargs = array();
+    foreach($args as $arg) {
+      array_push($pargs, self::getArgument($arg));
+    }
+    return $pargs;
+  }
+
+  static public function getArgument($arg, $recursion = true)
+  {
+    switch (strtolower(gettype($arg))) {
+      case 'string':
+        return '"'.$arg.'"';
+      case 'boolean':
+        return (bool)$arg;
+      case 'object':
+        return 'object('. get_class($arg) . ')';
+      case 'array':
+        $pargs = array();
+        foreach ($arg as $key => $value) {
+          if (!$recursion) {
+            array_push($pargs, self::getArgument($key, false). ' => '. self::getArgument($value, false));
+          }
+        }
+        return 'array('. implode(', ', $pargs) . ')';
+      case 'resource':
+        return 'resource('. get_resource_type($arg). ')';
+      default:
+        return var_export($arg, true);
+    }
+  }
+
+  static public function handler($errno, $errstr = '', $errfile = '', $errline = '', $errcontext = null)
+  {
+    $p = array('backtrace' => array());
+    if (error_reporting() == 0) {
+      return;
+    }
+    if (func_num_args() == 5) {
+      // error
+      list($p['errno'], $p['error_str'], $p['error_file'], $p['error_line']) = func_get_args();
+      $backtrace = array_reverse(debug_backtrace());
+    } else {
+      // exception
+      $exc = func_get_arg(0);
+      $p['errno'] = $exc->getCode();
+      $p['error_str'] = $exc->getMessage();
+      $p['error_file'] = $exc->getFile();
+      $p['error_line'] = $exc->getLine();
+      $backtrace = $exc->getTrace();
+    }
+    array_pop($backtrace); // remove handler self
+    if (array_key_exists($errno, self::$errorType)) {
+      $p['error_type'] = self::$errorType[$p['errno']];
+    } else {
+      $p['error_type'] = 'CAUGHT EXCEPTION';
+    }
+    foreach ($backtrace as $bt) {
+      if (isset($bt['class'])) {
+        $trace = 'in class '. $bt['class'].'::'.$v['function'].'(';
+        if (isset($bt['args'])) {
+          $trace .= implode(', ', self::getArguments($bt['args']));
+        }
+        $trace .= ')';
+        array_push($p['backtrace'], $trace);
+      } elseif (isset($bt['function'])) {
+        $trace = 'in function '.$bt['function'].'(';
+        if (isset($bt['args'])) {
+          $trace .= implode(', ', self::getArguments($bt['args']));
+        }
+        $trace .= ')';
+        array_push($p['backtrace'], $trace);
+      } else {
+        array_push($p['backtrace'], 'unknown');
+      }
+    }
+    switch ($p['errno']) {
+      case E_NOTICE:
+      case E_USER_NOTICE:
+      case E_STRICT:
+        return;
+        break;
+      default:
+        echo MuParser::parse(self::BACKTRACE_HTML)->render($p);
+    }
+    exit(1);
   }
 }
 ?>
