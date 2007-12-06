@@ -120,7 +120,6 @@ POSSIBILITY OF SUCH DAMAGE.
 
 // 実装メモ
 // FIXMEを全部直すように。
-// キャッシュ機構とか欲しいね。パース済みの構           : コメントの終わりです。造をシリアライズする？
 
 class MuUtil {
   public static function getpath($basepath, $path) {
@@ -461,7 +460,7 @@ class MuCycleNode implements MuNode {
   function _render($context) {
     $this->counter++;
     $value = $this->cyclevars[$this->counter % $this->cyclevars_len];
-    if ($this->variable_name) {
+    if (isset($this->variable_name)) {
       $context.set($this->variable_name, $value);
     }
     return $value;
