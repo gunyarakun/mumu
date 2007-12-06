@@ -367,10 +367,10 @@ class GTIfNode extends GTNode {
         list($ifnot, $bool_expr) = $be;
         $value = $context->resolve($bool_expr);
         if (!(($value && !$ifnot) || ($ifnot && !$value))) {
-          return $this->nodelist_false>_render($context);
+          return $this->nodelist_false->_render($context);
         }
       }
-      return $this->nodelist_true>_render($context);
+      return $this->nodelist_true->_render($context);
     }
   }
 }
@@ -725,7 +725,7 @@ class GTParser {
         }
         foreach ($boolpairs as $boolpair) {
           // not¤Î½èÍý
-          if (in_array(' ', $boolpair)) {
+          if (strpos($boolpair, ' ') !== FALSE) {
             // TODO: error handling
             list($not, $boolvar) = explode(' ', $boolpair);
             if ($not != 'not') {
@@ -743,18 +743,19 @@ class GTParser {
           return FALSE;
         }
         $nodelist_true = $this->_parse($lpos, $bepos);
-        if ($nextrag == 'else') {
+        if ($nexttag == 'else') {
+          echo 'elsessu****';
           if ((list($bepos, $blpos, $nexttag) =
                     $this->find_endtags($eblpos, $epos, array('endif'))) === FALSE) {
             return FALSE;
           }
-          $nodelist_false = $hits->_parse($eblpos, $eblpos);
+          $nodelist_false = $this->_parse($eblpos, $bepos);
           $spos = $blpos;
         } else {
           $nodelist_false = new GTNodeList();
           $spos = $eblpos;
         }
-        $node = new GTIfNode($bool_exprs, $nodelist_true, $nodelist_false, $link_type);
+        $node = new GTIfNode($boolvars, $nodelist_true, $nodelist_false, $link_type);
         break;
       case 'debug':
         $node = new GTDebugNode();
