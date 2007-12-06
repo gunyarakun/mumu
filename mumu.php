@@ -299,7 +299,6 @@ class MuFile implements MuNode {
   private $block_dict;     // nodelistの中にあるblock名 => MuBlockNode(の参照)
   public $include_paths;   // includeしたファイル名一覧（キャッシュの確認で使う）
   public $path;            // 自分のファイル名
-  private $parent_path;    // extendsのファイル名
   private $parent_tfile;   // extendsがある場合の親テンプレート
   function __construct($nodelist, $block_dict, $include_paths,
                        $path = null, $parent_path = null) {
@@ -308,8 +307,8 @@ class MuFile implements MuNode {
     $this->include_paths = $include_paths;
     $this->path = $path;
     if ($parent_path && $path) {
-      if (($this->parent_path = MuUtil::getpath($path, $parent_path)) === false
-          || ($this->parent_tfile = MuParser::parse_from_file($this->parent_path)) === false) {
+      if (($epath = MuUtil::getpath($path, $parent_path)) === false
+          || ($this->parent_tfile = MuParser::parse_from_file($epath)) === false) {
         throw new MuParserException('invalid filename specified on extends');
       }
     }
@@ -359,8 +358,8 @@ class MuFile implements MuNode {
         return false;
       }
     }
-    if (isset($this->parent_path)) {
-      if ($cache_mtime < filemtime($this->parent_path)) {
+    if (isset($this->parent_tfile)) {
+      if ($cache_mtime < filemtime($this->parent_tfile->path)) {
         return false;
       }
       // check parent
@@ -1454,6 +1453,7 @@ class MuParser {
         return false;
       }
     }
+    // キャッシュになかったら生成
     if (!isset($mf)) {
       if (($t = file_get_contents($template_path)) === false) {
         return false;
@@ -1466,6 +1466,7 @@ class MuParser {
         $nl->push($p->make_errornode($e->getMessage()));
       }
       $mf = new MuFile($nl, $p->block_dict, $p->include_paths, $template_path, $p->extends);
+      // 指定したキャッシュに保存
       if (isset($sfpath)) {
         MuUtil::serialize_to_file($mf, $sfpath);
       }
