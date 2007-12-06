@@ -710,6 +710,8 @@ class MuFilterExpression {
     'title' => true,
     'truncatewords' => true,
     'upper' => true,
+    'urllize' => true,
+    'urllizetrunc' => true,
     'wordcount' => true,
     'wordwrap' => true,
     'yesno' => true,
@@ -926,8 +928,16 @@ class MuFilterExpression {
             $val = substr($val, 0, $pos[$limit]);
           }
           break;
-        case 'lower':
+        case 'upper':
           $val = strtoupper($val);
+          break;
+        case 'urllize':
+          $val = preg_replace('/https?:\/\/[-_.!~*\'a-zA-Z0-9;\/?:@&=+\$,%#]+/','<a href="\\0" target="_blank">\\0</a>', $val);
+          break;
+        case 'urllizetrunc':
+          $limit = intval($fil[1]);
+          var_dump($limit);
+          $val = preg_replace('/https?:\/\/[-_.!~*\'a-zA-Z0-9;\/?:@&=+\$,%#]+/e','\'<a href="\\0" target="_blank">\'.substr(\'\\0\', 0, $limit).\'</a>\'', $val);
           break;
         case 'wordcount':
           $val = str_word_count($val, 0);
