@@ -64,11 +64,13 @@ class GTContext {
   function __construct($dict = array()) {
     $this->dicts = array($dict);
   }
-  function has_key($key) {
-    return array_key_exists($key, $this->dicts[0]);
-  }
   function get($key) {
-    return $this->dicts[0][$key];
+    foreach ($this->dicts as $dict) {
+      if (array_key_exists($key, $dict)) {
+        return $dict[$key];
+      }
+    }
+    return null;
   }
   function set($key, $value) {
     $this->dicts[0][$key] = $value;
@@ -194,7 +196,6 @@ class GTIncludeNode extends GTNode {
   function __construct($includePath) {
     // FIXME: セキュリティチェック、無限ループチェック
     $p = new GTParser();
-    echo 'uyhyhoyhoy';
     if (($this->tplfile = $p->parse_from_file($includePath)) === FALSE) {
       // TODO: エラー起こしたテンプレート名を安全に教えてあげる
       $this->tplfile = new GTTextNode('include error');
@@ -209,12 +210,34 @@ class GTBlockNode extends GTNode {
   private $name;
   private $nodelist;
   private $parent;
-  function __construct($name, $nodelist) {
+
+  private $context; // for block.super
+
+  function __construct($name, $nodelist, $parent = Null) {
     $this->name = $name;
     $this->nodelist = $nodelist;
+    $this->parent = $parent;
   }
   public function _render($context) {
-    // FIXME: implement
+    $context->push();
+    $this->context = &$context;
+    $context->set('block', $this); // block.super用
+    $res = $this->nodelist->_render($context);
+    $context->pop();
+    return $res;
+  }
+  public function super() {
+    if ($this->parent) {
+      return $this->parent->_render($this->context);
+    }
+    return '';
+  }
+  public function add_parent($nodelist) {
+    if ($this->parent) {
+      $this->parent->add_parent($nodelist);
+    } else {
+      $this->parent = new GTBlockNode($this->name, $this->nodelist);
+    }
   }
 }
 
@@ -475,8 +498,8 @@ class GTParser {
       $fpos += 2;
       if (($lpos = $this->find_closetag($fpos, $epos, self::BLOCK_TAG_END)) !== FALSE) {
         // その中身をtrimしてチェック
-        if (trim(substr($this->template, $fpos, $lpos)) == $endtag) {
-          return $fpos - 2;
+        if (trim(substr($this->template, $fpos, $lpos - $fpos)) == $endtag) {
+          return array($fpos - 2, $lpos + 2);
         }
       }
     }
@@ -500,6 +523,7 @@ class GTParser {
           return FALSE;
         }
         $this->extends = $in[1];
+        $spos = $lpos + 2;
         break;
       case 'include':
         if (count($in) != 2) {
@@ -513,6 +537,7 @@ class GTParser {
           return FALSE;
         }
         $node = new GTIncludeNode($param[1]);
+        $spos = $lpos + 2;
         break;
       case 'block': // endblock
         // TODO: filter block name
@@ -523,12 +548,13 @@ class GTParser {
           return FALSE;
         }
         $lpos += 2;
-        if (($bepos = $this->find_endtag($lpos, $epos, 'endblock')) === FALSE) {
+        if ((list($bepos, $blpos) = $this->find_endtag($lpos, $epos, 'endblock')) === FALSE) {
           return FALSE;
         }
         $nodelist = $this->_parse($lpos, $bepos);
         $node = new GTBlockNode($blockname, $nodelist);
         $this->block_dict[$blockname] = &$node; // reference
+        $spos = $blpos;
         break;
       case 'for': // endfor
         $node = new GTForNode(loopvar, sequence, reversed, nodelist_loop);
@@ -554,12 +580,13 @@ class GTParser {
           return FALSE;
         }
         $node = new GTNowNode($param[1]);
+        $spos = $lpos + 2;
         break;
       default:
         $node = new GTUnknownNode();
+        $spos = $lpos + 2;
         break;
     }
-    $spos = $lpos + 2;
     return $node;
   }
 
@@ -618,31 +645,33 @@ class GTParser {
         // タグ以外の部分をGTTextNodeとして保存
         $nl->push(new GTTextNode(substr($this->template, $spos, $nspos - $spos)));
       }
-      switch (substr($this->template, $nspos, 2)) {
-        case self::BLOCK_TAG_START:
-          if (($node = $this->parse_block($nspos, $epos)) === FALSE) {
-            unset($this->template);
-            return FALSE;
-          }
-          $nl->push($node);
-          break;
-        case self::VARIABLE_TAG_START:
-          if (($node = $this->parse_variable($nspos, $epos)) === FALSE) {
-            unset($this->template);
-            return FALSE;
-          }
-          $nl->push($node);
-          break;
-        case self::COMMENT_TAG_START:
-          if (($node = $this->parse_comment($nspos, $epos)) === FALSE) {
-            unset($this->template);
-            return FALSE;
-          }
-          $nl->push($node);
-          break;
-        default:
-          // 単なる{は読みとばす
-          $nspos += 1;
+      if ($nspos < $epos) {
+        switch (substr($this->template, $nspos, 2)) {
+          case self::BLOCK_TAG_START:
+            if (($node = $this->parse_block($nspos, $epos)) === FALSE) {
+              unset($this->template);
+              return FALSE;
+            }
+            $nl->push($node);
+            break;
+          case self::VARIABLE_TAG_START:
+            if (($node = $this->parse_variable($nspos, $epos)) === FALSE) {
+              unset($this->template);
+              return FALSE;
+            }
+            $nl->push($node);
+            break;
+          case self::COMMENT_TAG_START:
+            if (($node = $this->parse_comment($nspos, $epos)) === FALSE) {
+              unset($this->template);
+              return FALSE;
+            }
+            $nl->push($node);
+            break;
+          default:
+            // 単なる{は読みとばす
+            $nspos += 1;
+        }
       }
       $spos = $nspos;
     }
