@@ -603,8 +603,8 @@ class MuWidthRatioNode extends MuNode {
   }
   public function _render($context) {
     try {
-      $value = $context->resolve($this->val_expr);
-      $maxvalue = $context->resolve($this->max_expr);
+      $value = $this->val_expr->resolve($context);
+      $maxvalue = $this->max_expr->resolve($context);
     } catch (MuValueDoesNotExistException $e) {
       return '';
     }
@@ -1088,7 +1088,8 @@ class MuParser {
         }
         $this->spos = $lpos + 2;
         // MEMO: $in[3]はfloatかもしらんがな…
-        $node = new MuWidthRatioNode($in[1], $in[2], intval($in[3]));
+        $node = new MuWidthRatioNode(new MuFilterExpression($in[1]),
+                                     new MuFilterExpression($in[2]), intval($in[3]));
         break;
       case 'endblock':
       case 'else':
