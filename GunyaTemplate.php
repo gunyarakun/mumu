@@ -64,6 +64,14 @@ class GTContext {
   function __construct($dict = array()) {
     $this->dicts = array($dict);
   }
+  function has_key($key) {
+    foreach ($this->dicts as $dict) {
+      if (array_key_exists($key, $dict)) {
+        return True;
+      }
+    }
+    return False;
+  }
   function get($key) {
     foreach ($this->dicts as $dict) {
       if (array_key_exists($key, $dict)) {
@@ -242,6 +250,50 @@ class GTFilterNode extends GTNode {
 }
 
 class GTForNode extends GTNode {
+  private $loopvar;
+  private $sequence;
+  private $reversed;
+  private $nodelist_loop;
+
+  function __construct($loopvar, $sequence, $reversed, $nodelist_loop) {
+    $this->loopvar = $loopvar;
+    $this->sequence = $sequence;
+    $this->reversed = $reversed;
+    $this->nodelist_loop = $nodelist_loop;
+  }
+  function _render($context) {
+    if ($context->has_key('forloop')) {
+      $parentloop = $context->get('forloop');
+    } else {
+      $parentloop = new GTContext();
+    }
+    $context->push();
+    if (!($values = $context->get($this->sequence))) {
+      $values = array();
+    }
+    if (!is_array($values)) {
+      $values = array($value);
+    }
+    $len_values = count($values);
+    // FIXME: $this->reversed
+    $rnodelist = array();
+    for ($i = 0; $i < $len_values; $i++) {
+      $context->set('forloop', array(
+        'counter0' => $i,
+        'counter' => $i + 1,
+        'revcounter' => $len_values - $i,
+        'revcounter0' => $len_values - $i - 1,
+        'first' => ($i == 0),
+        'last' => ($i == ($len_values - 1)),
+        'parentloop' => $parentloop
+      ));
+      $context->set($this->loopvar, $values[$i]);
+      array_push($rnodelist, $this->nodelist_loop->_render($context));
+    }
+    $context->pop();
+    var_dump($rnodelist);
+    return implode('', $rnodelist);
+  }
 }
 
 class GTIfNode extends GTNode {
@@ -541,6 +593,7 @@ class GTParser {
         $spos = $lpos + 2;
         break;
       case 'block': // endblock
+        // TODO: check params
         // TODO: filter block name
         $blockname = $in[1];
         if (array_key_exists($blockname, $this->block_dict)) {
@@ -558,7 +611,28 @@ class GTParser {
         $spos = $blpos;
         break;
       case 'for': // endfor
-        $node = new GTForNode(loopvar, sequence, reversed, nodelist_loop);
+        // $in[1] = $loopvar, $in[2] = 'in', $in[3] = $sequence, $in[4] = 'reversed'
+        if ((count($in) != 4 && count($in) != 5) || $in[2] != 'in') {
+          $this->errorStr = 'forのパラメータの数または書式が不正です';
+          return FALSE;
+        }
+        if (count($in) == 5) {
+          if ($in[4] == 'reversed') {
+            $reversed = True;
+          } else {
+            $this->errorStr = 'forの5つめのパラメータはreversedのみ指定できます。';
+            return FALSE;
+          }
+        } else {
+          $reversed = False;
+        }
+        $lpos += 2;
+        if ((list($bepos, $blpos) = $this->find_endtag($lpos, $epos, 'endfor')) === FALSE) {
+          return FALSE;
+        }
+        $nodelist = $this->_parse($lpos, $bepos);
+        $node = new GTForNode($in[1], $in[3], $reversed, $nodelist);
+        $spos = $blpos;
         break;
       case 'cycle':
         $node = new GTCycleNode(cyclevars);
