@@ -924,7 +924,7 @@ class MuParser {
           // Djangoは変数もOKだけどね
           return $this->make_errornode('invalidparam_include_tag');
         }
-        $node = new MuIncludeNode($param[1]);
+        $node = new MuIncludeNode($param[1], $this->templatePath);
         $this->spos = $lpos + 2;
         break;
       case 'block': // endblock
