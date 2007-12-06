@@ -94,9 +94,14 @@ POSSIBILITY OF SUCH DAMAGE.
 
 class MuUtil {
   public static function getpath($basepath, $path) {
+    $basepath = realpath($basepath);
     $o = getcwd();
     chdir(dirname($basepath));
     $r = realpath($path);
+    if ($basepath == $realpath) {
+      // avoid include/extends loop
+      return false;
+    }
     chdir($o);
     return $r;
   }
@@ -250,9 +255,9 @@ class MuFile extends MuNode {
     $this->nodelist = $nodelist;
     $this->block_dict = $block_dict;
     if ($parentPath && $path) {
-      $epath = MuUtil::getpath($path, $parentPath);
-      if (($this->parent_tfile = MuParser::parse_from_file($epath)) === false) {
-        // TODO: エラー起こしたテンプレート名を安全に教えてあげる
+      if (($epath = MuUtil::getpath($path, $parentPath)) === false
+          || ($this->parent_tfile = MuParser::parse_from_file($epath)) === false) {
+        throw new MuParserException('invalid filename specified on extends');
       }
     }
   }
@@ -324,11 +329,9 @@ class MuVariableNode extends MuNode {
 class MuIncludeNode extends MuNode {
   private $tplfile;
   function __construct($includePath, $path) {
-    // FIXME: セキュリティチェック、無限ループチェック
-    $epath = MuUtil::getpath($path, $includePath);
-    if (($this->tplfile = MuParser::parse_from_file($epath)) === false) {
-      // TODO: エラー起こしたテンプレート名を安全に教えてあげる
-      $this->tplfile = $this->make_errornode('invalidfilename_include');
+    if (($epath = MuUtil::getpath($path, $includePath)) === false
+        || ($this->tplfile = MuParser::parse_from_file($epath)) === false) {
+      throw new MuParserException('include filename is invalid');
     }
   }
   public function _render($context) {
