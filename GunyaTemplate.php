@@ -79,9 +79,11 @@ class GTContext {
       if (is_array($current) && array_key_exists($bits[0], $current)) {
         // arrayからの辞書引き(配列キーもコレと一緒)
         $current = $current[$bits[0]];
-      } elseif (is_callable($current)) {
-        // 関数コール
-        $current = $current();
+      } elseif (method_exists($current, $bits[0])) {
+        // メソッドコール
+        if (($current = call_user_func(array($current, $bits[0]))) === FALSE) {
+          return 'method call error';
+        }
       } else {
         return 'resolve error';
       }
