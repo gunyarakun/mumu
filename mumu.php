@@ -59,6 +59,9 @@ POSSIBILITY OF SUCH DAMAGE.
 // {% endifequal %}           : ifequalの終わり
 // {% ifnotequal var1 var2 %} : var1 == var2の条件が満たされたら出力
 // {% endifnotequal %}        : ifnotequalの終わり
+// {% spaceless %}            : タグの間のスペースを詰めます
+// {% endspaceless %}         : spacelessの終わり
+// {% templatetag tagname %}  : templateの構成に使われる文字字体を出力します
 // {# comment #}              : コメント
 
 // パイプ
@@ -561,6 +564,27 @@ class MuSpacelessNode extends MuNode {
   }
 }
 
+class MuTemplateTagNode extends MuNode {
+  private $tagtype;
+  // TODO: php5 don't support array as const...
+  public static $mapping = array (
+    'openblock' => MuParser::BLOCK_TAG_START,
+    'closeblock' => MuParser::BLOCK_TAG_END,
+    'openvariable' => MuParser::VARIABLE_TAG_START,
+    'closevariable' => MuParser::VARIABLE_TAG_END,
+    'openbrace' => MuParser::SINGLE_BRACE_START,
+    'closebrace' => MuParser::SINGLE_BRACE_END,
+    'opencomment' => MuParser::COMMENT_TAG_START,
+    'closecomment' => MuParser::COMMENT_TAG_END,
+  );
+  function __construct($tagtype) {
+    $this->tagtype = $tagtype;
+  }
+  public function _render($context) {
+    return self::$mapping[$this->tagtype];
+  }
+}
+
 class MuNowNode extends MuNode {
   private $format_string;
   function __construct($format_string) {
@@ -1009,6 +1033,16 @@ class MuParser {
         $this->spos = $lpos + 2;
         list($nodelist) = $this->_parse(array('endspaceless'));
         $node = new MuSpacelessNode($nodelist);
+        break;
+      case 'templatetag':
+        if (count($in) != 2) {
+          return $this->make_errornode('numofparam_templatetag_tag');
+        }
+        if (!array_key_exists($in[1], MuTemplateTagNode::$mapping)) {
+          return $this->make_errornode('invalidparam_templatetag_tag');
+        }
+        $this->spos = $lpos + 2;
+        $node = new MuTemplateTagNode($in[1]);
         break;
       case 'endblock':
       case 'else':
