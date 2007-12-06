@@ -309,7 +309,16 @@ class GTCycleNode extends GTNode {
 class GTDebugNode extends GTNode {
   function _render($context) {
     ob_start();
+    echo "Context\n";
     var_dump($context);
+    echo "\$_SERVER\n";
+    var_dump($_SERVER);
+    echo "\$_GET\n";
+    var_dump($_GET);
+    echo "\$_POST\n";
+    var_dump($_POST);
+    echo "\$_COOKIE\n";
+    var_dump($_COOKIE);
     $output = ob_get_contents();
     ob_end_clean();
     return $output;
