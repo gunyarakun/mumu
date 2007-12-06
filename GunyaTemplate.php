@@ -744,7 +744,6 @@ class GTParser {
         }
         $nodelist_true = $this->_parse($lpos, $bepos);
         if ($nexttag == 'else') {
-          echo 'elsessu****';
           if ((list($bepos, $blpos, $nexttag) =
                     $this->find_endtags($eblpos, $epos, array('endif'))) === FALSE) {
             return FALSE;
