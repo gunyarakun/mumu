@@ -170,8 +170,7 @@ class GTFile extends GTNode {
     $this->nodelist = $nodelist;
     $this->block_dict = $block_dict;
     if ($parentPath) {
-      $p = new GTParser();
-      if (($this->parent_tfile = $p->parse_from_file($parentPath)) === FALSE) {
+      if (($this->parent_tfile = GTParser::parse_from_file($parentPath)) === FALSE) {
         // TODO: エラー起こしたテンプレート名を安全に教えてあげる
       }
     }
@@ -240,8 +239,7 @@ class GTIncludeNode extends GTNode {
   private $tplfile;
   function __construct($includePath) {
     // FIXME: セキュリティチェック、無限ループチェック
-    $p = new GTParser();
-    if (($this->tplfile = $p->parse_from_file($includePath)) === FALSE) {
+    if (($this->tplfile = GTParser::parse_from_file($includePath)) === FALSE) {
       // TODO: エラー起こしたテンプレート名を安全に教えてあげる
       $this->tplfile = new GTTextNode('include error');
     }
@@ -501,6 +499,7 @@ class GTFilterExpression {
 
 class GTParser {
   private $template;             // パース前のテンプレート文字列
+  private $template_len;         // テンプレート文字列の長さ
   private $errorStr;             // エラー文字列
   private $block_dict = array(); // blockの名前 => blockへの参照
   private $extends = false;      // extendsの場合のファイル名
@@ -521,6 +520,7 @@ class GTParser {
 
   function __construct($template) {
     $this->template = $template;
+    $this->template_len = strlen($template);
   }
 
   // "や'でクオートされたものを除いてスペースで分割
@@ -624,39 +624,19 @@ class GTParser {
   }
 
   // 終了タグ(#}とか)を探して、その位置を返す
-  private function find_closetag(&$spos, &$epos, $closetag) {
-    if (($fpos = strpos($this->template, $closetag, $spos)) === FALSE || $fpos >= $epos) {
+  private function find_closetag(&$spos, $closetag) {
+    if (($fpos = strpos($this->template, $closetag, $spos)) === FALSE) {
       $this->errorStr = "タグが閉じられてないようです($closetagが見つかりません)。";
       return FALSE;
     }
     return $fpos;
   }
 
-  // 直近のelseやendblockやendifやendforを探す
-  private function find_endtags($spos, &$epos, $endtags) {
-    // まず、直近のブロック開始タグを探して
-    while (($spos = strpos($this->template, self::BLOCK_TAG_START, $spos)) !== FALSE
-           && $spos < $epos) {
-      $spos += 2;
-      if (($lpos = $this->find_closetag($spos, $epos, self::BLOCK_TAG_END)) !== FALSE
-          && $lpos < $epos) {
-        // その中身をtrimしてチェック
-        $c = trim(substr($this->template, $spos, $lpos - $spos));
-        if (in_array($c, $endtags)) {
-          return array($spos - 2, $lpos + 2, $c);
-        }
-        $spos = $lpos + 2;
-      }
-    }
-    $this->errorStr = "block/if/forが閉じられていないようです。";
-    return FALSE;
-  }
-
   // {% %}の中身をパースして、GTNodeを返す。
   // extendsは頭に書かないといけない
-  private function parse_block(&$spos, &$epos) {
+  private function parse_block(&$spos) {
     $spos += 2;
-    if (($lpos = $this->find_closetag($spos, $epos, self::BLOCK_TAG_END)) === FALSE) {
+    if (($lpos = $this->find_closetag($spos, self::BLOCK_TAG_END)) === FALSE) {
       return FALSE;
     }
     $in = $this->smart_split(substr($this->template, $spos, $lpos - $spos));
@@ -703,14 +683,10 @@ class GTParser {
           $this->errorStr = '同じ名前のblockは１つだけしか指定できません。';
           return FALSE;
         }
-        $lpos += 2;
-        if ((list($bepos, $blpos) = $this->find_endtags($lpos, $epos, array('endblock'))) === FALSE) {
-          return FALSE;
-        }
-        $nodelist = $this->_parse($lpos, $bepos);
+        $spos = $lpos + 2;
+        list($nodelist) = $this->_parse($spos, array('endblock'));
         $node = new GTBlockNode($blockname, $nodelist);
         $this->block_dict[$blockname] = &$node; // reference
-        $spos = $blpos;
         break;
       case 'for': // endfor
         // $in[1] = $loopvar, $in[2] = 'in', $in[3] = $sequence, $in[4] = 'reversed'
@@ -728,13 +704,9 @@ class GTParser {
         } else {
           $reversed = False;
         }
-        $lpos += 2;
-        if ((list($bepos, $blpos) = $this->find_endtags($lpos, $epos, array('endfor'))) === FALSE) {
-          return FALSE;
-        }
-        $nodelist = $this->_parse($lpos, $bepos);
+        $spos = $lpos + 2;
+        list($nodelist) = $this->_parse($spos, array('endfor'));
         $node = new GTForNode($in[1], $in[3], $reversed, $nodelist);
-        $spos = $blpos;
         break;
       case 'cycle':
         // TODO: implement namedCycleNodes
@@ -783,22 +755,13 @@ class GTParser {
             array_push($boolvars, array(False, $boolpair));
           }
         }
-        $lpos += 2;
-        if ((list($bepos, $eblpos, $nexttag) =
-               $this->find_endtags($lpos, $epos, array('else', 'endif'))) === FALSE) {
-          return FALSE;
-        }
-        $nodelist_true = $this->_parse($lpos, $bepos);
+        $spos = $lpos + 2;
+        list($nodelist_true, $nexttag) =
+          $this->_parse($spos, array('else', 'endif'));
         if ($nexttag == 'else') {
-          if ((list($bepos, $blpos, $nexttag) =
-                    $this->find_endtags($eblpos, $epos, array('endif'))) === FALSE) {
-            return FALSE;
-          }
-          $nodelist_false = $this->_parse($eblpos, $bepos);
-          $spos = $blpos;
+          list($nodelist_false) = $this->_parse($spos, array('endif'));
         } else {
           $nodelist_false = new GTNodeList();
-          $spos = $eblpos;
         }
         $node = new GTIfNode($boolvars, $nodelist_true, $nodelist_false, $link_type);
         break;
@@ -824,14 +787,18 @@ class GTParser {
           $this->errorStr = 'filterのパラメータがありません。';
           return FALSE;
         }
-        $lpos += 2;
-        if ((list($bepos, $blpos) = $this->find_endtags($lpos, $epos, array('endfilter'))) === FALSE) {
-          return FALSE;
-        }
+        $spos += 2;
         $filter_expr = new GTFilterExpression('var|'. $in[1]);
-        $nodelist = $this->_parse($lpos, $bepos);
+        list($nodelist) = $this->_parse($spos, array('endfilter'));
         $node = new GTFilterNode($filter_expr, $nodelist);
-        $spos = $blpos;
+        break;
+      case 'endblock':
+      case 'else':
+      case 'endif':
+      case 'endfor':
+      case 'endfilter':
+        $node = $in[0]; // raw string
+        $spos = $lpos + 2;
         break;
       default:
         $node = new GTUnknownNode();
@@ -841,9 +808,9 @@ class GTParser {
     return $node;
   }
 
-  private function parse_variable(&$spos, &$epos) {
+  private function parse_variable(&$spos) {
     $spos += 2;
-    if (($lpos = $this->find_closetag($spos, $epos, self::VARIABLE_TAG_END)) === FALSE) {
+    if (($lpos = $this->find_closetag($spos, self::VARIABLE_TAG_END)) === FALSE) {
       return FALSE;
     }
     // TODO: handle empty {{ }}
@@ -853,9 +820,9 @@ class GTParser {
     return $node;
   }
 
-  private function parse_comment(&$spos, &$epos) {
+  private function parse_comment(&$spos) {
     $spos += 2;
-    if (($lpos = $this->find_closetag($spos, $epos, self::COMMENT_TAG_END)) === FALSE) {
+    if (($lpos = $this->find_closetag($spos, self::COMMENT_TAG_END)) === FALSE) {
       return FALSE;
     }
     $spos = $lpos + 2;
@@ -867,58 +834,74 @@ class GTParser {
       return FALSE;
     }
     $p = new GTParser($t);
-    $nl = $p->_parse(0, strlen($t));
+    $spos = 0;
+    list($nl) = $p->_parse($spos, array());
     return new GTFile($nl, $p->block_dict, $p->extends);
   }
 
   static public function parse($templateStr) {
     $p = new GTParser($templateStr);
-    $nl = $p->_parse(0, strlen($templateStr));
+    $spos = 0;
+    list($nl) = $p->_parse($spos, array());
     return new GTFile($nl, $p->block_dict);
   }
 
-  private function _parse($spos, $epos) {
-    $nl = new GTNodeList();
-    while ($spos < $epos) {
-      $nspos = strpos($this->template, self::SINGLE_BRACE_START, $spos);
-      if ($nspos === FALSE) {
-        $nspos = $epos;
-      }
-      if ($spos < $nspos) {
-        // non-tag strings are stored to GTTextNode
-        $nl->push(new GTTextNode(substr($this->template, $spos, $nspos - $spos)));
-      }
-      if ($nspos < $epos) {
-        switch (substr($this->template, $nspos, 2)) {
-          case self::BLOCK_TAG_START:
-            if (($node = $this->parse_block($nspos, $epos)) === FALSE) {
-              unset($this->template);
-              return FALSE;
-            }
-            $nl->push($node);
-            break;
-          case self::VARIABLE_TAG_START:
-            if (($node = $this->parse_variable($nspos, $epos)) === FALSE) {
-              unset($this->template);
-              return FALSE;
-            }
-            $nl->push($node);
-            break;
-          case self::COMMENT_TAG_START:
-            if (($node = $this->parse_comment($nspos, $epos)) === FALSE) {
-              unset($this->template);
-              return FALSE;
-            }
-            $nl->push($node);
-            break;
-          default:
-            // { only
-            $nspos += 1;
-        }
-      }
-      $spos = $nspos;
+  private function add_textnode(&$nodelist, &$tspos, &$epos) {
+    if ($tspos < $epos) {
+      $nodelist->push(new GTTextNode(
+        substr($this->template, $tspos, $epos - $tspos)));
     }
-    return $nl;
+  }
+
+  private function _parse(&$spos, $parse_until) {
+    $nl = new GTNodeList();
+    $tspos = $spos;
+    while (true) {
+      echo "*** spos:$spos tspos:$tspos\n";
+      $spos = strpos($this->template, self::SINGLE_BRACE_START, $spos);
+      if ($spos === FALSE) {
+        $this->add_textnode($nl, $tspos, $this->template_len);
+        return array($nl, null);
+      }
+      switch (substr($this->template, $spos, 2)) {
+        case self::BLOCK_TAG_START:
+          $this->add_textnode($nl, $tspos, $spos);
+          if (($node = $this->parse_block($spos)) === FALSE) {
+            return FALSE;
+          }
+          $tspos = $spos;
+          if (is_string($node)) {
+            // close tag
+            if (in_array($node, $parse_until)) {
+              return array($nl, $node);
+            } else {
+              // invalid close tag
+            }
+          } else {
+            $nl->push($node);
+          }
+          break;
+        case self::VARIABLE_TAG_START:
+          $this->add_textnode($nl, $tspos, $spos);
+          if (($node = $this->parse_variable($spos)) === FALSE) {
+            return FALSE;
+          }
+          $nl->push($node);
+          $tspos = $spos;
+          break;
+        case self::COMMENT_TAG_START:
+          $this->add_textnode($nl, $tspos, $spos);
+          if (($node = $this->parse_comment($spos)) === FALSE) {
+            return FALSE;
+          }
+          $nl->push($node);
+          $tspos = $spos;
+          break;
+        default:
+          // { only
+          $spos += 1;
+      }
+    }
   }
 }
 ?>
