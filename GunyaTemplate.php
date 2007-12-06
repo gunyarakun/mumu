@@ -45,8 +45,8 @@
 // |length                      : 配列の長さ
 // |escape                      : %<>"'のエスケープ
 // |stringformat:"format"       : 指定したフォーマットで値をフォーマット
-// |truncatewords:"100"         : 指定した文字数まで切り詰める
 // |urlencode                   : urlエンコード
+// |linebreaksbr                : 改行を<br />に変換
 
 // 特殊な変数
 // forloop.counter     : 現在のループ回数番号 (1 から数えたもの)
@@ -102,7 +102,7 @@ class GTVariableNode extends GTNode {
     $this->filter_expression = $filter_expression;
   }
   public function render($context) {
-    return $filter_expression->resolve($context);
+    return $this->filter_expression->resolve($context);
   }
 }
 
@@ -180,16 +180,57 @@ class GTFilterExpression {
     // $this->filters = 'array(array('default, 'Default value'), array('date', 'Y-m-d'))'
     // ってする。
     // Djangoのは_で始まったらいけないらしい。
-    $fils = GTParser::smart_split($token, '|');
+
+    $fils = GTParser::smart_split(trim($token), '|', False, True);
     $this->var = array_shift($fils);
+    $this->filters = array();
     foreach ($fils as $fil) {
-      $fils = GTParser::smart_split($fil, ':');
+      $f = GTParser::smart_split($fil, ':', True, False);
+      array_push($this->filters, $f);
     }
+    var_dump($this->filters);
   }
 
   // TODO: support ignore_failures
   public function resolve($context) {
+    // evalとかcall_user_func_arrayせずにswitch-caseで
 
+    // TODO: resolve_variable
+    $val = $context[$this->var];
+    foreach ($this->filters as $fil) {
+      // TODO: 引数チェック
+      switch ($fil[0]) {
+        case 'addslashes':
+          $val = addslashes($val);
+          break;
+        case 'length':
+          # arrayはcount、stringはstrlen
+          if (is_array($val)) {
+            $val = count($val);
+          } else if (is_string($val)) {
+            $val = strlen($val);
+          }
+          break;
+        case 'escape':
+          if (is_array($val)) {
+            $val = count($val);
+          } else if (is_string($val)) {
+            $val = strlen($val);
+          }
+          break;
+        case 'stringformat':
+          // $fil[1]にヤバい文字入らないように気をつけるんだよ
+          $val = printf($fil[1], $var);
+          break;
+        case 'urlencode':
+          $val = urlencode($val);
+          break;
+        case 'linebreaksbr':
+          $val = nl2br($val);
+          break;
+      }
+    }
+    return $val;
   }
 }
 
@@ -219,7 +260,10 @@ class GTParser {
   // "や'内で"'を使う場合には、\"\'とする。
   // 素直に正規表現で書けばよかったか、まあいっか。
   // マルチバイトセーフなデリミタを使うように気をつけるんだよ
-  static public function smart_split($text, $delimiter = ' ') {
+
+  // $decode : quote中の\でのエスケープを解釈して展開するかどうか
+  // $quote  : quote文字そのものも出力するかどうか
+  static public function smart_split($text, $delimiter = ' ', $decode = True, $quote = True) {
     $epos = strlen($text);
     $ret = array();
     $mode = 'n';  // 'n': not quoted, 'd': in ", 'q': in '
@@ -227,6 +271,10 @@ class GTParser {
       $a = $text[$spos];
       switch ($a) {
         case '\\':
+          // 何度もsmart_splitする場合は$decodeをFalseにしておく(ex. filter)
+          if (!$decode && $mode != 'n') {
+            $buf .= '\\';
+          }
           switch ($mode) {
             case 'd':
               if ($text[$spos + 1] == '"') {
@@ -250,12 +298,14 @@ class GTParser {
                 $buf .= $a;
               }
               break;
-            default:
-              $buf .= '\\';
+            default: // 'n'
+              $buf.= '\\';
           }
           break;
         case "'":
-          $buf .= "'";
+          if ($quote) {
+            $buf .= "'";
+          }
           switch ($mode) {
             case 'd':
               break;
@@ -268,7 +318,9 @@ class GTParser {
           }
           break;
         case '"':
-          $buf .= '"';
+          if ($quote) {
+            $buf .= '"';
+          }
           switch ($mode) {
             case 'd':
               $mode = 'n';
@@ -372,17 +424,22 @@ class GTParser {
   // {{ }}の中身をパース
   private function parse_variable(&$spos) {
     $spos += 2;
-    if (($epos = find_closetag($this->template, $spos, self::VARIABLE_TAG_END)) === FALSE) {
+    if (($epos = $this->find_closetag($this->template, $spos, self::VARIABLE_TAG_END))
+        === FALSE) {
       return FALSE;
     }
-    $in = $this->smart_split(substr($this->template, $spos, $epos));
+    // TODO: handle empty {{ }}
+    $fil = new GTFilterExpression(substr($this->template, $spos, $epos - $spos));
+    $node = new GTVariableNode($fil);
     $spos = $epos + 2;
+    return $node;
   }
 
   // {# #}の中身をパース
   private function parse_comment(&$spos) {
     $spos += 2;
-    if (($epos = find_closetag($this->template, $spos, self::COMMENT_TAG_END)) === FALSE) {
+    if (($epos = $this->find_closetag($this->template, $spos, self::COMMENT_TAG_END))
+        === FALSE) {
       return FALSE;
     }
     $spos = $epos + 2; // #}のあと
