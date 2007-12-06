@@ -171,7 +171,7 @@ class MuContext {
     if (is_numeric($expr)) {
       $current = (strpos($expr, '.') === false) ? intval($expr) : floatval($expr);
     } elseif (($expr{0} == "'" || $expr{0} ==  '"') &&
-              $expr{0} == $expr{-1}) {
+              $expr{0} == substr($expr, -1, 1)) {
       $current = substr($expr, 1, strlen($expr) - 2);
     } else {
       $bits = explode(self::VARIABLE_ATTRIBUTE_SEPARATOR, $expr);
