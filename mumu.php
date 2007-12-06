@@ -54,7 +54,7 @@ POSSIBILITY OF SUCH DAMAGE.
 // {% now "format" %}           : 現在の日付を指定フォーマットで出力します
 // {% filter fil1|fil2 %}       : ブロック内コンテンツをフィルタにかけます
 // {% endfilter %}              : filterの終わり
-// {% firstof var1 var2 %}      : 渡された変数のうち、Falseでない最初の変数
+// {% firstof var1 var2 %}      : 渡された変数のうち、falseでない最初の変数
 // {% ifequal var1 var2 %}      : var1 == var2の条件が満たされたら出力
 // {% endifequal %}             : ifequalの終わり
 // {% ifnotequal var1 var2 %}   : var1 == var2の条件が満たされたら出力
@@ -116,7 +116,7 @@ class MuContext {
   // ドット連結表現から値を取り出す
   function resolve($expr) {
     if (ctype_digit($expr)) {
-      $current = (strpos($expr, '.') === FALSE) ? intval($expr) : floatval($expr);
+      $current = (strpos($expr, '.') === false) ? intval($expr) : floatval($expr);
     } elseif (in_array($expr{0}, array("'", '"')) && $expr{0} == $expr{-1}) {
       $current = substr($expr, 1, strlen($expr) - 2);
     } else {
@@ -129,7 +129,7 @@ class MuContext {
           $current = $current[$bits[0]];
         } elseif (method_exists($current, $bits[0])) {
           // メソッドコール
-          if (($current = call_user_func(array($current, $bits[0]))) === FALSE) {
+          if (($current = call_user_func(array($current, $bits[0]))) === false) {
             return 'method call error';
           }
         } else {
@@ -256,7 +256,7 @@ class MuFile extends MuNode {
     $this->block_dict = $block_dict;
     if ($parentPath && $path) {
       $epath = MuUtil::getpath($path, $parentPath);
-      if (($this->parent_tfile = MuParser::parse_from_file($epath)) === FALSE) {
+      if (($this->parent_tfile = MuParser::parse_from_file($epath)) === false) {
         // TODO: エラー起こしたテンプレート名を安全に教えてあげる
       }
     }
@@ -267,7 +267,7 @@ class MuFile extends MuNode {
   public function _render($context) {
     if ($this->parent_tfile) {
       foreach ($this->block_dict as $blockname => $blocknode) {
-        if (($parent_block = $this->parent_tfile->get_block($blockname)) === FALSE) {
+        if (($parent_block = $this->parent_tfile->get_block($blockname)) === false) {
           if ($this->parent_tfile->is_child()) {
             $this->parent_tfile->append_block($blocknode);
           }
@@ -297,7 +297,7 @@ class MuFile extends MuNode {
     $this->block_dict[$blocknode->name] = $blocknode;
   }
   public function is_child() {
-    return ($parent_tfile !== FALSE);
+    return ($parent_tfile !== false);
   }
 }
 
@@ -331,7 +331,7 @@ class MuIncludeNode extends MuNode {
   function __construct($includePath, $path) {
     // FIXME: セキュリティチェック、無限ループチェック
     $epath = MuUtil::getpath($path, $includePath);
-    if (($this->tplfile = MuParser::parse_from_file($epath)) === FALSE) {
+    if (($this->tplfile = MuParser::parse_from_file($epath)) === false) {
       // TODO: エラー起こしたテンプレート名を安全に教えてあげる
       $this->tplfile = $this->make_errornode('invalidfilename_include');
     }
@@ -669,11 +669,11 @@ class MuFilterExpression {
     // ってする。
     // Djangoのは_で始まったらいけないらしい。
 
-    $fils = MuParser::smart_split(trim($token), '|', False, True);
+    $fils = MuParser::smart_split(trim($token), '|', false, True);
     $this->var = array_shift($fils);
     $this->filters = array();
     foreach ($fils as $fil) {
-      $f = MuParser::smart_split($fil, ':', True, False);
+      $f = MuParser::smart_split($fil, ':', True, false);
       if (in_array($f[0], self::$valid_filternames)) {
         array_push($this->filters, $f);
       }
@@ -775,7 +775,7 @@ class MuParser {
       $a = $text[$spos];
       switch ($a) {
         case '\\':
-          // 何度もsmart_splitする場合は$decodeをFalseにしておく(ex. filter)
+          // 何度もsmart_splitする場合は$decodeをfalseにしておく(ex. filter)
           if (!$decode && $mode != 'n') {
             $buf .= '\\';
           }
@@ -863,8 +863,8 @@ class MuParser {
 
   // 終了タグ(#}とか)を探して、その位置を返す
   private function find_closetag($closetag) {
-    if (($fpos = strpos($this->template, $closetag, $this->spos)) === FALSE) {
-      return FALSE;
+    if (($fpos = strpos($this->template, $closetag, $this->spos)) === false) {
+      return false;
     }
     return $fpos;
   }
@@ -894,14 +894,14 @@ class MuParser {
   // extendsは頭に書かないといけない
   private function parse_block() {
     $this->spos += 2;
-    if (($lpos = $this->find_closetag(self::BLOCK_TAG_END)) === FALSE) {
+    if (($lpos = $this->find_closetag(self::BLOCK_TAG_END)) === false) {
       return $this->make_errornode('without_closetag_tag');
     }
     $in = $this->smart_split(substr($this->template, $this->spos, $lpos - $this->spos));
     switch ($in[0]) {
       // TODO: 引数の数チェックを全般
       case 'extends':
-        if ($this->extends !== FALSE) {
+        if ($this->extends !== false) {
           return $this->make_errornode('multiple_extends_tag');
         }
         if (count($in) != 2) {
@@ -924,8 +924,8 @@ class MuParser {
           // Djangoは変数もOKだけどね
           return $this->make_errornode('invalidparam_include_tag');
         }
-        $node = new MuIncludeNode($param[1], $this->templatePath);
         $this->spos = $lpos + 2;
+        $node = new MuIncludeNode($param[1], $this->templatePath);
         break;
       case 'block': // endblock
         // TODO: check params
@@ -951,11 +951,15 @@ class MuParser {
             return $this->make_errornode('invalidparam_for_tag');
           }
         } else {
-          $reversed = False;
+          $reversed = false;
         }
         $this->spos = $lpos + 2;
         list($nodelist) = $this->_parse(array('endfor'));
-        $node = new MuForNode($in[1], $in[3], $reversed, $nodelist);
+        if ($nodelist) {
+          $node = new MuForNode($in[1], $in[3], $reversed, $nodelist);
+        } else {
+          return false;
+        }
         break;
       case 'cycle':
         // TODO: implement namedCycleNodes
@@ -988,7 +992,7 @@ class MuParser {
         }
         foreach ($boolpairs as $boolpair) {
           // handle 'not'
-          if (strpos($boolpair, ' ') !== FALSE) {
+          if (strpos($boolpair, ' ') !== false) {
             // TODO: error handling
             list($not, $boolvar) = explode(' ', $boolpair);
             if ($not != 'not') {
@@ -996,7 +1000,7 @@ class MuParser {
             }
             array_push($boolvars, array(True, $boolvar));
           } else {
-            array_push($boolvars, array(False, $boolpair));
+            array_push($boolvars, array(false, $boolpair));
           }
         }
         $this->spos = $lpos + 2;
@@ -1029,7 +1033,7 @@ class MuParser {
           return $this->make_errornode('numofparam_filter_tag');
         }
         $this->spos = $lpos + 2;
-        if (($filter_expr = new MuFilterExpression('var|'. $in[1])) === FALSE) {
+        if (($filter_expr = new MuFilterExpression('var|'. $in[1])) === false) {
           return $this->make_errornode('invalidparam_filter_tag');
         }
         list($nodelist) = $this->_parse(array('endfilter'));
@@ -1114,12 +1118,12 @@ class MuParser {
 
   private function parse_variable() {
     $this->spos += 2;
-    if (($lpos = $this->find_closetag(self::VARIABLE_TAG_END)) === FALSE) {
-      return FALSE;
+    if (($lpos = $this->find_closetag(self::VARIABLE_TAG_END)) === false) {
+      return false;
     }
     // TODO: handle empty {{ }}
     if (($fil = new MuFilterExpression(
-                  substr($this->template, $this->spos, $lpos - $this->spos))) === FALSE) {
+                  substr($this->template, $this->spos, $lpos - $this->spos))) === false) {
       return $this->make_errornode('invalidparam_filter_variable');
     }
     $node = new MuVariableNode($fil);
@@ -1129,15 +1133,15 @@ class MuParser {
 
   private function parse_comment() {
     $this->spos += 2;
-    if (($lpos = $this->find_closetag(self::COMMENT_TAG_END)) === FALSE) {
-      return FALSE;
+    if (($lpos = $this->find_closetag(self::COMMENT_TAG_END)) === false) {
+      return false;
     }
     $this->spos = $lpos + 2;
   }
 
   static public function parse_from_file($templatePath) {
-    if (($t = file_get_contents($templatePath)) === FALSE) {
-      return FALSE;
+    if (($t = file_get_contents($templatePath)) === false) {
+      return false;
     }
     $p = new MuParser($t);
     $p->templatePath = $templatePath;
@@ -1163,9 +1167,9 @@ class MuParser {
     $tspos = $this->spos;
     while (true) {
       $this->spos = strpos($this->template, self::SINGLE_BRACE_START, $this->spos);
-      if ($this->spos === FALSE) {
+      if ($this->spos === false) {
         if (count($parse_until) != 0) {
-          return FALSE;
+          return false;
         }
         $this->spos = $this->template_len;
         $this->add_textnode($nl, $tspos, $this->template_len);
@@ -1174,8 +1178,8 @@ class MuParser {
       switch (substr($this->template, $this->spos, 2)) {
         case self::BLOCK_TAG_START:
           $this->add_textnode($nl, $tspos, $this->spos);
-          if (($node = $this->parse_block()) === FALSE) {
-            return FALSE;
+          if (($node = $this->parse_block()) === false) {
+            return false;
           }
           $tspos = $this->spos;
           if (is_string($node)) {
@@ -1184,6 +1188,7 @@ class MuParser {
               return array($nl, $node);
             } else {
               // invalid close tag
+              return false;
             }
           } elseif (isset($node)) {
             $nl->push($node);
@@ -1191,16 +1196,16 @@ class MuParser {
           break;
         case self::VARIABLE_TAG_START:
           $this->add_textnode($nl, $tspos, $this->spos);
-          if (($node = $this->parse_variable()) === FALSE) {
-            return FALSE;
+          if (($node = $this->parse_variable()) === false) {
+            return false;
           }
           $nl->push($node);
           $tspos = $this->spos;
           break;
         case self::COMMENT_TAG_START:
           $this->add_textnode($nl, $tspos, $this->spos);
-          if (($node = $this->parse_comment()) === FALSE) {
-            return FALSE;
+          if (($node = $this->parse_comment()) === false) {
+            return false;
           }
           $nl->push($node);
           $tspos = $this->spos;
