@@ -326,6 +326,7 @@ class GTParser {
   const COMMENT_TAG_END = '#}';
   const SINGLE_BRACE_START = '{';
   const SINGLE_BRACE_END = '}';
+  // FIXME: タグの長さである定数2がパーサの中に散らばってます
 
   // "や'でクオートされたものを除いてスペースで分割
   // "や'内で"'を使う場合には、\"\'とする。
@@ -428,25 +429,37 @@ class GTParser {
     return $ret;
   }
 
-  // 終了タグを探して、その位置を返す
-  private function find_closetag($t, &$spos, &$epos, $closetag) {
-    if (($fpos = strpos($t, $closetag, $spos)) === FALSE || $fpos >= $epos) {
+  // 終了タグ(#}とか)を探して、その位置を返す
+  private function find_closetag(&$spos, &$epos, $closetag) {
+    if (($fpos = strpos($this->template, $closetag, $spos)) === FALSE || $fpos >= $epos) {
       $this->errorStr = "タグが閉じられてないようです($closetagが見つかりません)。";
       return FALSE;
     }
     return $fpos;
   }
 
-  // endblockやendifやendforを探す
-  private function find_endtag($t, &$spos, &$epos) {
+  // 直近のendblockやendifやendforを探す
+  private function find_endtag(&$spos, &$epos, $endtag) {
+    // まず、直近のブロック開始タグを探して
+    if (($fpos = strpos($this->template, self::BLOCK_TAG_START, $spos)) !== FALSE
+        && $fpos < $epos) {
+      $fpos += 2;
+      if (($lpos = $this->find_closetag($fpos, $epos, self::BLOCK_TAG_END)) !== FALSE) {
+        // その中身をtrimしてチェック
+        if (trim(substr($this->template, $fpos, $lpos)) == $endtag) {
+          return $fpos - 2;
+        }
+      }
+    }
+    $this->errorStr = "block/if/forが閉じられていないようです。";
+    return FALSE;
   }
 
   // {% %}の中身をパースして、GTNodeを返す。
   // extendsは頭に書かないといけない
   private function parse_block(&$spos, &$epos) {
     $spos += 2;
-    if (($lpos = $this->find_closetag($this->template, $spos, $epos, self::BLOCK_TAG_END))
-        === FALSE) {
+    if (($lpos = $this->find_closetag($spos, $epos, self::BLOCK_TAG_END)) === FALSE) {
       return FALSE;
     }
     $in = $this->smart_split(substr($this->template, $spos, $lpos - $spos));
@@ -470,9 +483,11 @@ class GTParser {
           $this->errorStr = '同じ名前のblockは１つだけしか指定できません。';
           return FALSE;
         }
-        // blockタグはネストがないので、そのまんまendblock検索
-        // FIXME FIXME koko
-        $nodelist = $this->_parse($lpos + 2, $epos);
+        $lpos += 2;
+        if (($bepos = $this->find_endtag($lpos, $epos, 'endblock')) === FALSE) {
+          return FALSE;
+        }
+        $nodelist = $this->_parse($lpos, $bepos);
         $node = new GTBlockNode($blockname, $nodelist);
         $this->block_dict[$blockname] = &$node; // reference
         break;
@@ -512,8 +527,7 @@ class GTParser {
   // {{ }}の中身をパース
   private function parse_variable(&$spos, &$epos) {
     $spos += 2;
-    if (($lpos = $this->find_closetag($this->template, $spos, $epos, self::VARIABLE_TAG_END))
-        === FALSE) {
+    if (($lpos = $this->find_closetag($spos, $epos, self::VARIABLE_TAG_END)) === FALSE) {
       return FALSE;
     }
     // TODO: handle empty {{ }}
@@ -526,8 +540,7 @@ class GTParser {
   // {# #}の中身をパース
   private function parse_comment(&$spos, &$epos) {
     $spos += 2;
-    if (($lpos = $this->find_closetag($this->template, $spos, $epos, self::COMMENT_TAG_END))
-        === FALSE) {
+    if (($lpos = $this->find_closetag($spos, $epos, self::COMMENT_TAG_END)) === FALSE) {
       return FALSE;
     }
     $spos = $lpos + 2; // #}のあと
