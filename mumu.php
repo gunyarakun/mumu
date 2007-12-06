@@ -152,7 +152,8 @@ class MuContext {
   function resolve($expr) {
     if (ctype_digit($expr)) {
       $current = (strpos($expr, '.') === false) ? intval($expr) : floatval($expr);
-    } elseif (in_array($expr{0}, array("'", '"')) && $expr{0} == $expr{-1}) {
+    } elseif (($expr{0} == "'" || $expr{0} ==  '"') &&
+              $expr{0} == $expr{-1}) {
       $current = substr($expr, 1, strlen($expr) - 2);
     } else {
       $bits = explode(self::VARIABLE_ATTRIBUTE_SEPARATOR, $expr);
