@@ -79,6 +79,16 @@ POSSIBILITY OF SUCH DAMAGE.
 // FIXMEを全部直すように。
 // キャッシュ機構とか欲しいね。パース済みの構造をシリアライズする？
 
+class MuUtil {
+  public static function getpath($basepath, $path) {
+    $o = getcwd();
+    chdir(dirname($basepath));
+    $r = realpath($path);
+    chdir($o);
+    return $r;
+  }
+}
+
 class MuContext {
   // テンプレートに当てはめる値の情報を保持するクラス
   private $dicts;
@@ -212,13 +222,13 @@ class MuFile extends MuNode {
   public $nodelist;        // ファイルをパースしたNodeList
   private $block_dict;      // nodelistの中にあるblock名 => MuBlockNode(の参照)
   private $parent_tfile;    // extendsがある場合の親テンプレート
-  function __construct($nodelist, $block_dict, $parentPath = false) {
+  function __construct($nodelist, $block_dict, $parentPath = null, $path = null) {
     $this->nodelist = $nodelist;
     $this->block_dict = $block_dict;
-    if ($parentPath) {
-      if (($this->parent_tfile = MuParser::parse_from_file($parentPath)) === FALSE) {
+    if ($parentPath && $path) {
+      $epath = MuUtil::getpath($path, $parentPath);
+      if (($this->parent_tfile = MuParser::parse_from_file($epath)) === FALSE) {
         // TODO: エラー起こしたテンプレート名を安全に教えてあげる
-        return $this->make_errornode('invalidfilename_extends');
       }
     }
   }
@@ -907,7 +917,7 @@ class MuParser {
     $p = new MuParser($t);
     $p->templatePath = $templatePath;
     list($nl) = $p->_parse(array());
-    return new MuFile($nl, $p->block_dict, $p->extends);
+    return new MuFile($nl, $p->block_dict, $p->extends, $templatePath);
   }
 
   static public function parse($templateStr) {
