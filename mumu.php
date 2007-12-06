@@ -212,6 +212,7 @@ class MuErrorNode extends MuNode {
     'numofparam_filter_tag' => 'Number of parameters are invalid to filter tag',
     'invalidparam_filter_tag' => 'Invalid parameter(s) specified to filter tag',
     'numofparam_firstof_tag' => 'Number of parameters are invalid to firstof tag',
+    'numofparam_ifequal_tag' => 'Number of parameters are invalid to ifequal/ifnotequal tag',
     'invalidparam_filter_variable' => 'Invalid filter name',
     'unknown_tag' => 'Unknown tag is specified',
     'unknown' => 'Unknown error. Maybe bugs in MuMu'
@@ -512,6 +513,31 @@ class MuIfNode extends MuNode {
       }
       return $this->nodelist_true->_render($context);
     }
+  }
+}
+
+class MuIfEqualNode extends MuNode {
+  function __construct($var1, $var2, $nodelist_true, $nodelist_false, $negate) {
+    $this->var1 = $var1;
+    $this->var2 = $var2;
+    $this->nodelist_true = $nodelist_true;
+    $this->nodelist_false = $nodelist_false;
+    $this->negate = $negate;
+  }
+
+  public function _render($context) {
+    try {
+      $val1 = $context->resolve($this->var1);
+    } catch (MuValueDoesNotExistException $e) {
+    }
+    try {
+      $val2 = $context->resolve($this->var2);
+    } catch (MuValueDoesNotExistException $e) {
+    }
+    if (($this->negate && $val1 != $val2) || (!$this->negate && $val1 == $val2)) {
+      return $this->nodelist_true->_render($context);
+    }
+    return $this->nodelist_false->_render($context);
   }
 }
 
@@ -942,11 +968,31 @@ class MuParser {
         $this->spos = $lpos + 2;
         $node = new MuFirstOfNode($in);
         break;
+      case 'ifequal':
+      case 'ifnotequal':
+        if (count($in) != 3) {
+          return $this->make_errornode('numofparam_ifequal_tag');
+        }
+        $this->spos = $lpos + 2;
+        $negate = ($in[0] == 'ifnotequal');
+        $endtag = 'end' . $in[0];
+        echo $endtag;
+        list($nodelist_true, $nexttag) =
+          $this->_parse(array('else', $endtag));
+        if ($nexttag == 'else') {
+          list($nodelist_false) = $this->_parse(array($endtag));
+        } else {
+          $nodelist_false = new MuNodeList();
+        }
+        $node = new MuIfEqualNode($in[1], $in[2], $nodelist_true, $nodelist_false, $negate);
+        break;
       case 'endblock':
       case 'else':
       case 'endif':
       case 'endfor':
       case 'endfilter':
+      case 'endifequal':
+      case 'endifnotequal':
         $node = $in[0]; // raw string
         $this->spos = $lpos + 2;
         break;
