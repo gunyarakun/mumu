@@ -92,7 +92,7 @@ class GTTextNode extends GTNode {
     $this->text = $text;
   }
   function render($context) {
-    return $text;
+    return $this->text;
   }
 }
 
@@ -330,7 +330,6 @@ class GTParser {
         $node = new GTDebugNode();
         break;
       case 'now':
-        var_dump($in);
         if (count($in) != 2) {
           $this->errorStr = 'nowは書式文字列が必要です';
           return FALSE;
