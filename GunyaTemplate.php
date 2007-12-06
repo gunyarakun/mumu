@@ -507,7 +507,6 @@ class GTParser {
   // "や'内で"'を使う場合には、\"\'とする。
   // 素直に正規表現で書けばよかったか、まあいっか。
   // マルチバイトセーフなデリミタを使うように気をつけるんだよ
-
   // $decode : quote中の\でのエスケープを解釈して展開するかどうか
   // $quote  : quote文字そのものも出力するかどうか
   static public function smart_split($text, $delimiter = ' ', $decode = True, $quote = True) {
@@ -751,7 +750,7 @@ class GTParser {
           }
         }
         foreach ($boolpairs as $boolpair) {
-          // notの処理
+          // handle 'not'
           if (strpos($boolpair, ' ') !== FALSE) {
             // TODO: error handling
             list($not, $boolvar) = explode(' ', $boolpair);
@@ -822,7 +821,6 @@ class GTParser {
     return $node;
   }
 
-  // {{ }}の中身をパース
   private function parse_variable(&$spos, &$epos) {
     $spos += 2;
     if (($lpos = $this->find_closetag($spos, $epos, self::VARIABLE_TAG_END)) === FALSE) {
@@ -835,13 +833,12 @@ class GTParser {
     return $node;
   }
 
-  // {# #}の中身をパース
   private function parse_comment(&$spos, &$epos) {
     $spos += 2;
     if (($lpos = $this->find_closetag($spos, $epos, self::COMMENT_TAG_END)) === FALSE) {
       return FALSE;
     }
-    $spos = $lpos + 2; // #}のあと
+    $spos = $lpos + 2;
   }
 
   public function parse_from_file($templatePath) {
@@ -865,13 +862,12 @@ class GTParser {
   private function _parse($spos, $epos) {
     $nl = new GTNodeList();
     while ($spos < $epos) {
-      // タグの開始部分を見つける
       $nspos = strpos($this->template, self::SINGLE_BRACE_START, $spos);
       if ($nspos === FALSE) {
         $nspos = $epos;
       }
       if ($spos < $nspos) {
-        // タグ以外の部分をGTTextNodeとして保存
+        // non-tag strings are stored to GTTextNode
         $nl->push(new GTTextNode(substr($this->template, $spos, $nspos - $spos)));
       }
       if ($nspos < $epos) {
@@ -898,7 +894,7 @@ class GTParser {
             $nl->push($node);
             break;
           default:
-            // 単なる{は読みとばす
+            // { only
             $nspos += 1;
         }
       }
