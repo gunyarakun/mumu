@@ -657,6 +657,36 @@ class MuFilterExpression {
     'linebreaksbr',
     'date',
     'join',
+    'add',
+    'capfirst',
+    'center',
+    'cut',
+    'default',
+    'default_if_none',
+    'divisibleby',
+    'filesizeformat',
+    'first',
+    'fix_ampersands',
+    'floatformat',
+    'get_digit',
+    'length_is',
+    'linebreaks',
+    'linenumbers',
+    'ljust',
+    'lower',
+    'make_list',
+    'pprint',
+    'random',
+    'removetags',
+    'rjust',
+    'slice',
+    'striptags',
+    'title',
+    'truncatewords',
+    'upper',
+    'wordcount',
+    'wordwrap',
+    'yesno',
   );
 
   function __construct($token) {
@@ -690,15 +720,22 @@ class MuFilterExpression {
           $val = addslashes($val);
           break;
         case 'length':
-          # arrayはcount、stringはstrlen
+          # arrayはcount、stringはstrlen(length_isも)
           if (is_array($val)) {
             $val = count($val);
           } else if (is_string($val)) {
             $val = strlen($val);
           }
           break;
+        case 'length_is':
+          if (is_array($val)) {
+            $val = (count($val) == intval($fil[1]));
+          } else if (is_string($val)) {
+            $val = (strlen($val) == intval($fil[1]));
+          }
+          break;
         case 'escape':
-          $val = htmlspecialchars($val);
+          $val = htmlspecialchars($val, ENT_QUOTES);
           break;
         case 'stringformat':
           // $fil[1]にヤバい文字入らないように気をつけるんだよ
@@ -711,12 +748,188 @@ class MuFilterExpression {
           $val = nl2br($val);
           break;
         case 'date':
+        case 'time':
           $val = $val instanceof DateTime ? $val : new DateTime($val);
           $val = $val->format($fil[1]);
           break;
         case 'join':
           if (is_array($val)) {
             $val = implode($fil[1], $val);
+          }
+          break;
+        case 'add':
+          $val = int($val) + int($fil[1]);
+          break;
+        case 'capfirst':
+          $val = ucfirst($val);
+          break;
+        case 'center':
+          $len = intval($fil[1]);
+          $val_len = strlen($val);
+          if ($val_len < $len) {
+            substr_replace(str_repeat(' ', $len), $val, ($len - $val_len) / 2);
+          }
+          break;
+        case 'cut':
+          // TODO: check specification of python replace
+          $val = str_replace($fil[1], '', $val);
+          break;
+        case 'default':
+          $val = isset($val) ? $val : $fil[1];
+          break;
+        case 'default_if_none':
+          $val = is_null($val) ? $fil[1] : $val;
+          break;
+        case 'divisibleby':
+          $val = (intval($val) % intval($fil[1]) == 0);
+          break;
+        case 'filesizeformat':
+          if (!ctype_digit($val)) {
+            $val = '0 bytes';
+          } else {
+            $bytes = floatval($val);
+            if ($bytes < 1024) {
+              // TODO: 1 byte
+              $val = "$bytes bytes";
+            } elseif ($bytes < 1024 * 1024) {
+              $val = sprintf("%.1f KB", (bytes / 1024));
+            } elseif ($bytes < 1024 * 1024 * 1024) {
+              $val = sprintf("%.1f MB", (bytes / (1024 * 1024)));
+            } else {
+              $val = sprintf("%.1f GB", (bytes / (1024 * 1024 * 1024)));
+            }
+          }
+          break;
+        case 'first':
+          if (is_array($val) && array_key_exists(0, $val)) {
+            $val = $val[0];
+          } else {
+            $val = '';
+          }
+          break;
+        case 'fix_ampersands':
+          $val = preg_replace('/&(?!(\w+|#\d+);)/', '&amp;', $val);
+          break;
+        case 'floatformat':
+          $f = floatval($val);
+          $d = array_key_exists(1, $fil) ? intval($fil[1]) : -1;
+          $m = $f - intval($f);
+          if ($m != 0 && $d < 0) {
+            $val = strval(intval($f));
+          } else {
+            $d = abs($d);
+            $val = sprintf("%.${d}f", $f);
+          }
+          break;
+        case 'get_digit':
+          $arg = intval($fil[1]);
+          $val = intval($val);
+          if ($arg >= 1) {
+            $val = intval(substr(strval($val), -$arg, 1));
+          }
+          break;
+        case 'linebreaks':
+          $val = preg_replace('/\r\n|\r|\n/', "\n", $val);
+          $paras = preg_split('/\n{2,}/', $val);
+          $ret = array();
+          foreach ($paras as $p) {
+            array_push($ret, '<p>'. nl2br(trim($p)) .'</p>');
+          }
+          $val = implode("\n\n", $ret);
+          break;
+        case 'linenumbers':
+          $lines = explode("\n", $val);
+          $width = count($lines);
+          for ($i = 0; $i < $lines; $i++) {
+            $lines[i] = sprintf("%${width}d. ", $i + 1).
+                        htmlspecialchars($lines[i], ENT_QUOTES);
+          }
+          $val = implode("\n", $lines);
+          break;
+        case 'ljust':
+          $len = intval($fil[1]);
+          $val_len = strlen($val);
+          if ($val_len < $len) {
+            $val .= str_repeat(' ', $len - $val_len);
+          }
+          break;
+        case 'lower':
+          $val = strtolower($val);
+          break;
+        case 'make_list':
+          $sval = strval($val);
+          $sval_len = strlen($sval);
+          $val = array();
+          for ($i = 0; $i < $sval_len; $i++) {
+            array_push($val, $sval[$i]);
+          }
+          break;
+        case 'pprint':
+          $val = print_r($val, true);
+          break;
+        case 'random':
+          $val = array_rand($val);
+          break;
+        case 'removetags':
+          // not tested...
+          $tags = array_map(preg_quote, explode(' ', $fil[1]));
+          $tags_re = '('. implode('|', $tags) .')';
+          $starttag_re = '/<'. $tags_re .'(\/?>|(\s+[^>]*>))';
+          $endtag_re = '/<\/'. $tags_re .'>/';
+          $val = preg_replace($endtag_re, '', preg_replace($starttag_re, '', $val));
+          break;
+        case 'rjust':
+          $len = intval($fil[1]);
+          $val_len = strlen($val);
+          if ($val_len < $len) {
+            $val = str_repeat(' ', $len - $val_len) + $val;
+          }
+          break;
+        case 'slice':
+          // TODO: chanto test
+          list($st, $ed) = explode(':', $val);
+          if (is_array($val)) {
+            $val = array_slice($val, $st, $ed);
+          } else if (is_string($val)) {
+            $val = substr($val, $st, $ed);
+          }
+          break;
+        case 'striptags':
+          $val = strip_tags($val);
+          break;
+        case 'title':
+          $val = ucwords($val);
+          break;
+        case 'truncatewords':
+          $limit = intval($fil[1]);
+          $words = str_word_count($val, 2);
+          $pos = array_keys($words);
+          if (count($pos) < $limit) {
+            $val = substr($val, 0, $pos[$limit]);
+          }
+          break;
+        case 'lower':
+          $val = strtoupper($val);
+          break;
+        case 'wordcount':
+          $val = str_word_count($val, 0);
+          break;
+        case 'wordwrap':
+          $val = wordwrap($val, $fil[1]);
+          break;
+        case 'yesno':
+          $arg = isset($fil[1]) ? $fil[1] : 'yes,no,maybe';
+          $bits = explode(',', $arg);
+          if (count($bits) >= 2) {
+            list($yes, $no, $maybe) = $bits;
+            if (!isset($maybe)) { $maybe = $no; }
+            if (is_null($value)) {
+              $val = $maybe;
+            } elseif ($value) {
+              $val = $yes;
+            } else {
+              $val = $no;
+            }
           }
           break;
         default:
