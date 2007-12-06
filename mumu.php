@@ -68,6 +68,18 @@ class MuUtil {
     }
     return true;
   }
+  public static function validate_uri($uri, $scheme) {
+    // use preg_quote('$-_.+!*\'(),{}|\\^~[]`<>#%";/?:@&=', '/');
+    if (preg_match('/[^A-Za-z0-9\\$-_\\.\\+\\!\\*\'\\(\\),\\{\\}\\|\\\\\\^~\\[\\]`\\<\\>#%";\\/\\?\\:@&\\=]/', $uri, $match) == 1) {
+      return false;
+    }
+    $u = @parse_url($uri);
+    if (!in_array($u['scheme'], $scheme) ||
+        empty($u['host'])) {
+      return false;
+    }
+    return true;
+  }
 }
 
 class MuInternal {
