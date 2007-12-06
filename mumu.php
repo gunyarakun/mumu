@@ -127,7 +127,8 @@ class MuUtil {
     $uri = rtrim(dirname($_SERVER['PHP_SELF']), '/\\');
     header("Location: http://$host%uri/$rel_path");
   }
-  public static function check_email($email, $dns = false, $strict = false/* , $quote = false */) {
+  // simple logic for validation of email address
+  public static function validate_email($email, $dns = false, $strict = false/* , $quote = false */) {
     // TODO: quoted localpart
     if (($at = strrpos($email, '@')) === false) {
       return false;
@@ -139,7 +140,7 @@ class MuUtil {
         strlen($domain) < 1 || strlen($domain) > 255 ||
         !preg_match('/^[A-Za-z0-9\\-\\.]+$/', $domain) ||
         preg_match('/\\.\\./', $domain) ||
-        !preg_match('/^(\\\\.|[A-Za-z0-9!#%&`_=\\/$\'*+?^{}|~.-])+$/',
+        !preg_match('/^(\\\\[\\x00-\\x7e]|[A-Za-z0-9!#%&`_=\\/$\'*+?^{}|~.-])+$/',
                     $local) ||
         // strict check(dot)
         $strict && 
