@@ -122,6 +122,40 @@ POSSIBILITY OF SUCH DAMAGE.
 // FIXMEを全部直すように。
 
 class MuUtil {
+  public static function redirect($rel_path) {
+    $host = $_SERVER['HTTP_HOST'];
+    $uri = rtrim(dirname($_SERVER['PHP_SELF']), '/\\');
+    header("Location: http://$host%uri/$rel_path");
+  }
+  public static function check_email($email, $dns = false, $strict = false/* , $quote = false */) {
+    // TODO: quoted localpart
+    if (($at = strrpos($email, '@')) === false) {
+      return false;
+    }
+    $local = substr($email, 0, $at);
+    $domain = substr($email, $at + 1);
+    $locallen = strlen($local);
+    if ($locallen < 1 || $locallen > 64 ||
+        strlen($domain) < 1 || strlen($domain) > 255 ||
+        !preg_match('/^[A-Za-z0-9\\-\\.]+$/', $domain) ||
+        preg_match('/\\.\\./', $domain) ||
+        !preg_match('/^(\\\\.|[A-Za-z0-9!#%&`_=\\/$\'*+?^{}|~.-])+$/',
+                    $local) ||
+        // strict check(dot)
+        $strict && 
+        ($local[0] == '.' || $local[$locallen - 1] == '.' ||
+         preg_match('/\\.\\./', $local)) ||
+        // DNS resolve
+        $dns &&
+        !(checkdnsrr($domain, 'MX') || checkdnsrr($domain, 'A'))
+       ) {
+      return false;
+    }
+    return true;
+  }
+}
+
+class MuInternal {
   public static function getpath($basepath, $path) {
     $basepath = realpath($basepath);
     $o = getcwd();
@@ -307,7 +341,7 @@ class MuFile implements MuNode {
     $this->include_paths = $include_paths;
     $this->path = $path;
     if ($parent_path && $path) {
-      if (($epath = MuUtil::getpath($path, $parent_path)) === false
+      if (($epath = MuInternal::getpath($path, $parent_path)) === false
           || ($this->parent_tfile = MuParser::parse_from_file($epath)) === false) {
         throw new MuParserException('invalid filename specified on extends');
       }
@@ -397,7 +431,7 @@ class MuVariableNode implements MuNode {
 class MuIncludeNode implements MuNode {
   private $tplfile;
   function __construct($include_path, $path) {
-    if (($epath = MuUtil::getpath($path, $include_path)) === false
+    if (($epath = MuInternal::getpath($path, $include_path)) === false
         || ($this->tplfile = MuParser::parse_from_file($epath)) === false) {
       throw new MuParserException('include filename is invalid');
     }
@@ -1442,7 +1476,7 @@ class MuParser {
             return false;
           }
           if (filemtime($template_path) <= $sfmtime) {
-            $mf = MuUtil::unserialize_from_file($sfpath);
+            $mf = MuInternal::unserialize_from_file($sfpath);
             if (!$mf->check_cache_mtime($sfmtime)) {
               unset($mf);
             }
@@ -1468,7 +1502,7 @@ class MuParser {
       $mf = new MuFile($nl, $p->block_dict, $p->include_paths, $template_path, $p->extends);
       // 指定したキャッシュに保存
       if (isset($sfpath)) {
-        MuUtil::serialize_to_file($mf, $sfpath);
+        MuInternal::serialize_to_file($mf, $sfpath);
       }
     }
     return $mf;
