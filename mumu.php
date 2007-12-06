@@ -763,7 +763,7 @@ class MuParser {
         }
         $this->extends = $param[1];
         $this->spos = $lpos + 2;
-        break;
+        return null;
       case 'include':
         if (count($in) != 2) {
           return $this->make_errornode('numofparam_include_tag');
@@ -970,7 +970,7 @@ class MuParser {
             } else {
               // invalid close tag
             }
-          } else {
+          } elseif (isset($node)) {
             $nl->push($node);
           }
           break;
