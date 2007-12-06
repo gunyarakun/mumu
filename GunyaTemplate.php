@@ -291,6 +291,13 @@ class GTCycleNode extends GTNode {
 }
 
 class GTDebugNode extends GTNode {
+  function _render($context) {
+    ob_start();
+    var_dump($context);
+    $output = ob_get_contents();
+    ob_end_clean();
+    return $output;
+  }
 }
 
 class GTFilterNode extends GTNode {
