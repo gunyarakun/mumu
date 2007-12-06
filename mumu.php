@@ -299,7 +299,8 @@ class MuVariableNode extends MuNode {
     try {
       return $this->filter_expression->resolve($context);
     } catch (MuValueDoesNotExistException $e) {
-      return $e->getMessage();
+      return '';
+      // return $e->getMessage();
     }
   }
 }
