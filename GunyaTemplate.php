@@ -1,24 +1,39 @@
 <?php
 // GunyaTemplate (c) Brazil, Inc.
 // originally developed by Tasuku SUENAGA a.k.a. gunyarakun
-// developed from 2007/09/04
+/*
+Copyright (c) 2005, the Lawrence Journal-World
+Copyright (c) 2007, Brazil, Inc.
+All rights reserved.
 
-// 設計目的
-// - このファイルだけあればOK
-// - 高速
-// - キャッシュ機能
-// - ヘッダ・フッタのinclude
-// - テンプレート内でループが扱える
-// - テンプレートファイルを直にhtmlとして閲覧可能
-// - urlエンコードやhtmlspecialcharsを簡単に指定できる
-// - PHP5は要求するよ
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
 
-// 使い方の概要(の目標)
-// - すべてのデータをハッシュに入れる（事前に全データを準備しないといけない）
-// - テンプレートファイルを指定する
-// - 処理する(キャッシュの有無も指定できる)
-// - 処理された内容が返ってくる
-// - echoなりなんなりお好きに
+  1. Redistributions of source code must retain the above copyright notice,
+     this list of conditions and the following disclaimer.
+
+  2. Redistributions in binary form must reproduce the above copyright
+     notice, this list of conditions and the following disclaimer in the
+     documentation and/or other materials provided with the distribution.
+
+  3. Neither the name of Django nor the names of its contributors may be used
+     to endorse or promote products derived from this software without
+     specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+*/
 
 // ●記法
 
@@ -60,8 +75,10 @@
 // forloop.parentloop  : 入れ子のループの場合、一つ上のループを表します
 // block.super         : 親テンプレートのblockの中身を取り出す。内容を追加する場合に便利。
 
-// メモ
+// 実装メモ
 // find_endtagsは見つけ次第parseもして、$spos動かしてもいいんじゃね！？
+// FIXMEを全部直すように。
+// キャッシュ機構とか欲しいね。パース済みの構造をシリアライズする？
 
 class GTContext {
   // テンプレートに当てはめる値の情報を保持するクラス
@@ -144,8 +161,7 @@ class GTNodeList {
   }
 }
 
-// 1つのテンプレートファイルをパースしたもの。
-// 外の世界に出るのがこいつ
+// 1つのテンプレートをパースしたもの。
 class GTFile extends GTNode {
   public $nodelist;        // ファイルをパースしたNodeList
   private $block_dict;      // nodelistの中にあるblock名 => GTBlockNode(の参照)
