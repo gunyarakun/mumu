@@ -161,6 +161,48 @@ class MuNodeList {
   }
 }
 
+class MuErrorNode extends MuNode {
+  private $errorCode;
+  // TODO: php5 don't support array as const
+  private static $errorMsg = array(
+    'without_closetag_tag' => 'Cannot find %} !', // TODO: remove const
+    'without_closetag_variable' => 'Cannot find }} !',
+    'without_closetag_comment' => 'Cannot find #} !',
+    'invalidfilename_extends_tag' => 'Invalid filename specified with extends tag',
+    'invalidfilename_include_tag' => 'Invalid filename specified with include tag',
+    'multiple_extends_tag' => 'Only 1 extends tag are allowed to be specified',
+    'numofparam_extends_tag' => 'Number of parameters are invalid to extends tag',
+    'invalidparam_extends_tag' => 'Invalid parameter(s) specified to extends tag',
+    'numofparam_include_tag' => 'Number of parameters are invalid to include tag',
+    'invalidparam_include_tag' => 'Invalid parameter(s) specified to include tag',
+    'multiple_block_tag' => 'Only 1 block tag can exists as the same name',
+    'numofparam_for_tag' => 'Number of parameters are invalid to for tag',
+    'invalidparam_for_tag' => 'Invalid parameter(s) specified to for tag',
+    'numofparam_cycle_tag' => 'Number of parameters are invalid to cycle tag',
+    'invalidparam_cycle_tag' => 'Invalid parameter(s) specified to cycle tag',
+    'numofparam_if_tag' => 'Number of parameters are invalid to if tag',
+    'andormixed_if_tag' => 'In if condition and/or is not allowed to be mixed',
+    'invalidparam_if_tag' => 'Invalid parameter(s) specified to if tag',
+    'numofparam_now_tag' => 'Number of parameters are invalid to now tag',
+    'invalidparam_now_tag' => 'Invalid parameter(s) specified to now tag',
+    'numofparam_filter_tag' => 'Number of parameters are invalid to filter tag',
+    'invalidparam_filter_tag' => 'Invalid parameter(s) specified to filter tag',
+    'invalidparam_filter_variable' => 'Invalid filter name',
+    'unknown_tag' => 'Unknown tag is specified',
+    'unknown' => 'Unknown error. Maybe bugs in MuMu'
+  );
+  function __construct($errorCode) {
+    if (array_key_exists($errorCode, self::$errorMsg)) {
+      $this->errorCode = $errorCode;
+    } else {
+      $this->errorCode = 'unknown';
+    }
+  }
+  public function _render($context) {
+    return self::$errorMsg[$this->errorCode];
+  }
+}
+
 // 1つのテンプレートをパースしたもの。
 class MuFile extends MuNode {
   public $nodelist;        // ファイルをパースしたNodeList
@@ -172,6 +214,7 @@ class MuFile extends MuNode {
     if ($parentPath) {
       if (($this->parent_tfile = MuParser::parse_from_file($parentPath)) === FALSE) {
         // TODO: エラー起こしたテンプレート名を安全に教えてあげる
+        return new MuErrorNode('invalidfilename_extends');
       }
     }
   }
@@ -241,7 +284,7 @@ class MuIncludeNode extends MuNode {
     // FIXME: セキュリティチェック、無限ループチェック
     if (($this->tplfile = MuParser::parse_from_file($includePath)) === FALSE) {
       // TODO: エラー起こしたテンプレート名を安全に教えてあげる
-      $this->tplfile = new MuTextNode('include error');
+      $this->tplfile = new MuErrorNode('invalidfilename_include');
     }
   }
   public function _render($context) {
@@ -435,15 +478,19 @@ class MuNowNode extends MuNode {
   }
 }
 
-class MuUnknownNode extends MuNode {
-  public function _render($context) {
-    return 'unknown...';
-  }
-}
-
 class MuFilterExpression {
   private $var;
   private $filters;
+
+  // TODO: php5 don't support array as const...
+  private static $valid_filternames = array (
+    'addslashes',
+    'length',
+    'escape',
+    'stringformat',
+    'urlencode',
+    'linebreaksbr',
+  );
 
   function __construct($token) {
     // $token = 'variable|default:"Default value"|date:"Y-m-d"'
@@ -458,7 +505,9 @@ class MuFilterExpression {
     $this->filters = array();
     foreach ($fils as $fil) {
       $f = MuParser::smart_split($fil, ':', True, False);
-      array_push($this->filters, $f);
+      if (in_array($f[0], self::$valid_filternames)) {
+        array_push($this->filters, $f);
+      }
     }
   }
 
@@ -509,7 +558,6 @@ class MuFilterExpression {
 class MuParser {
   private $template;             // パース前のテンプレート文字列
   private $template_len;         // テンプレート文字列の長さ
-  private $errorStr;             // エラー文字列
   private $block_dict = array(); // blockの名前 => blockへの参照
   private $extends = false;      // extendsの場合のファイル名
 
@@ -635,7 +683,6 @@ class MuParser {
   // 終了タグ(#}とか)を探して、その位置を返す
   private function find_closetag($spos, $closetag) {
     if (($fpos = strpos($this->template, $closetag, $spos)) === FALSE) {
-      $this->errorStr = "タグが閉じられてないようです($closetagが見つかりません)。";
       return FALSE;
     }
     return $fpos;
@@ -646,39 +693,34 @@ class MuParser {
   private function parse_block(&$spos) {
     $spos += 2;
     if (($lpos = $this->find_closetag($spos, self::BLOCK_TAG_END)) === FALSE) {
-      return FALSE;
+      return new MuErrorNode('without_closetag_tag');
     }
     $in = $this->smart_split(substr($this->template, $spos, $lpos - $spos));
     switch ($in[0]) {
       // TODO: 引数の数チェックを全般
       case 'extends':
         if ($this->extends !== FALSE) {
-          $this->errorStr = 'extendsは１つだけしか指定できません。';
-          return FALSE;
+          return new MuErrorNode('multiple_extends_tag');
         }
         if (count($in) != 2) {
-          $this->errorStr = 'extendsのパラメータを指定してください';
-          return FALSE;
+          return new MuErrorNode('numofparam_extends_tag');
         }
         $param = explode('"', $in[1]);
         if (count($param) != 3) {
           // Djangoは変数もOKだけどね
-          $this->errorStr = 'extendsのパラメータはファイル名のみです';
-          return FALSE;
+          return new MuErrorNode('invalidparam_extends_tag');
         }
         $this->extends = $param[1];
         $spos = $lpos + 2;
         break;
       case 'include':
         if (count($in) != 2) {
-          $this->errorStr = 'includeのパラメータを指定してください';
-          return FALSE;
+          return new MuErrorNode('numofparam_include_tag');
         }
         $param = explode('"', $in[1]);
         if (count($param) != 3) {
           // Djangoは変数もOKだけどね
-          $this->errorStr = 'includeのパラメータはファイル名のみです';
-          return FALSE;
+          return new MuErrorNode('invalidparam_include_tag');
         }
         $node = new MuIncludeNode($param[1]);
         $spos = $lpos + 2;
@@ -688,9 +730,7 @@ class MuParser {
         // TODO: filter block name
         $blockname = $in[1];
         if (array_key_exists($blockname, $this->block_dict)) {
-          // TODO: filtered block name print
-          $this->errorStr = '同じ名前のblockは１つだけしか指定できません。';
-          return FALSE;
+          return new MuErrorNode('multiple_block_tag');
         }
         $spos = $lpos + 2;
         list($nodelist) = $this->_parse($spos, array('endblock'));
@@ -700,15 +740,13 @@ class MuParser {
       case 'for': // endfor
         // $in[1] = $loopvar, $in[2] = 'in', $in[3] = $sequence, $in[4] = 'reversed'
         if ((count($in) != 4 && count($in) != 5) || $in[2] != 'in') {
-          $this->errorStr = 'forのパラメータの数または書式が不正です';
-          return FALSE;
+          return new MuErrorNode('numofparam_for_tag');
         }
         if (count($in) == 5) {
           if ($in[4] == 'reversed') {
             $reversed = True;
           } else {
-            $this->errorStr = 'forの5つめのパラメータはreversedのみ指定できます。';
-            return FALSE;
+            return new MuErrorNode('invalidparam_for_tag');
           }
         } else {
           $reversed = False;
@@ -720,13 +758,11 @@ class MuParser {
       case 'cycle':
         // TODO: implement namedCycleNodes
         if (count($in) != 2) {
-          $this->errorStr = 'cycleにはパラメータが１つ必要です。';
-          return FALSE;
+          return new MuErrorNode('numofparam_cycle_tag');
         }
         $cyclevars = explode(',', $in[1]);
         if (count($cyclevars) == 0) {
-          $this->errorStr = 'cycleには,で区切られた文字列が必要です。';
-          return FALSE;
+          return new MuErrorNode('invalidparam_cycle_tag');
         }
         $node = new MuCycleNode($cyclevars);
         $spos = $lpos + 2;
@@ -734,8 +770,7 @@ class MuParser {
       case 'if': // else, endif
         array_shift($in);
         if (count($in) < 1) {
-          $this->errorStr = 'ifのパラメータがありません。';
-          return FALSE;
+          return new MuErrorNode('numofparam_if_tag');
         }
         $bitstr = implode(' ', $in);
         $boolpairs = explode(' and ', $bitstr);
@@ -746,8 +781,7 @@ class MuParser {
         } else {
           $link_type = MuIfNode::LINKTYPE_AND;
           if (in_array(' or ', $bitstr)) {
-            $this->errorStr = 'ifでandとorを混ぜることができません。';
-            return FALSE;
+            return new MuErrorNode('andormixed_if_tag');
           }
         }
         foreach ($boolpairs as $boolpair) {
@@ -756,8 +790,7 @@ class MuParser {
             // TODO: error handling
             list($not, $boolvar) = explode(' ', $boolpair);
             if ($not != 'not') {
-              $this->errorStr = 'ifでnotが入るべきところに別のものが入っています。';
-              return FALSE;
+              return new MuErrorNode('invalidparam_if_tag');
             }
             array_push($boolvars, array(True, $boolvar));
           } else {
@@ -780,24 +813,23 @@ class MuParser {
         break;
       case 'now':
         if (count($in) != 2) {
-          $this->errorStr = 'nowは書式文字列が必要です';
-          return FALSE;
+          return new MuErrorNode('numofparam_now_tag');
         }
         $param = explode('"', $in[1]);
         if (count($param) != 3) {
-          $this->errorStr = 'nowの書式文字列は"でくくってください';
-          return FALSE;
+          return new MuErrorNode('invalidparam_now_tag');
         }
         $node = new MuNowNode($param[1]);
         $spos = $lpos + 2;
         break;
       case 'filter': // endfilter
         if (count($in) != 2) {
-          $this->errorStr = 'filterのパラメータがありません。';
-          return FALSE;
+          return new MuErrorNode('numofparam_filter_tag');
         }
         $spos = $lpos + 2;
-        $filter_expr = new MuFilterExpression('var|'. $in[1]);
+        if (($filter_expr = new MuFilterExpression('var|'. $in[1])) === FALSE) {
+          return new MuErrorNode('invalidparam_filter_tag');
+        }
         list($nodelist) = $this->_parse($spos, array('endfilter'));
         $node = new MuFilterNode($filter_expr, $nodelist);
         break;
@@ -810,7 +842,8 @@ class MuParser {
         $spos = $lpos + 2;
         break;
       default:
-        $node = new MuUnknownNode();
+        $node = new MuErrorNode('unknown_tag');
+        echo $in[0];
         $spos = $lpos + 2;
         break;
     }
@@ -823,7 +856,10 @@ class MuParser {
       return FALSE;
     }
     // TODO: handle empty {{ }}
-    $fil = new MuFilterExpression(substr($this->template, $spos, $lpos - $spos));
+    if (($fil = new MuFilterExpression(
+                  substr($this->template, $spos, $lpos - $spos))) === FALSE) {
+      return new MuErrorNode('invalidparam_filter_variable');
+    }
     $node = new MuVariableNode($fil);
     $spos = $lpos + 2;
     return $node;
@@ -839,7 +875,6 @@ class MuParser {
 
   static public function parse_from_file($templatePath) {
     if (($t = file_get_contents($templatePath)) === FALSE) {
-      $this->errorStr = 'ファイルが開けません。';
       return FALSE;
     }
     $p = new MuParser($t);
