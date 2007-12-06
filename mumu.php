@@ -113,7 +113,7 @@ class MuContext {
           return 'method call error';
         }
       } else {
-        return 'resolve error';
+        return false;
       }
       array_shift($bits);
     }
