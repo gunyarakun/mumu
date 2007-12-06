@@ -63,8 +63,28 @@
 class GTContext {
   // テンプレートに当てはめる値の情報を保持するクラス
   private $dicts;
+  const VARIABLE_ATTRIBUTE_SEPARATOR = '.';
   function __construct($dict = array()) {
     $this->dicts = array($dict);
+  }
+  // ドット連結表現から値を取り出す
+  function resolve($expr) {
+    $bits = explode(self::VARIABLE_ATTRIBUTE_SEPARATOR, $expr);
+    $current = $this->get($bits[0]);
+    array_shift($bits);
+    while ($bits) {
+      if (is_array($current) && array_key_exists($bits[0], $current)) {
+        // arrayからの辞書引き(配列キーもコレと一緒)
+        $current = $current[$bits[0]];
+      } elseif (is_callable($current)) {
+        // 関数コール
+        $current = $current();
+      } else {
+        return 'resolve error';
+      }
+      array_shift($bits);
+    }
+    return $current;
   }
   function has_key($key) {
     foreach ($this->dicts as $dict) {
@@ -289,7 +309,7 @@ class GTForNode extends GTNode {
       $parentloop = new GTContext();
     }
     $context->push();
-    if (!($values = $context->get($this->sequence))) {
+    if (!($values = $context->resolve($this->sequence))) {
       $values = array();
     }
     if (!is_array($values)) {
@@ -334,11 +354,23 @@ class GTIfNode extends GTNode {
   }
   function _render($context) {
     if ($this->link_type == self::LINKTYPE_OR) {
-      // TODO: 条件判断(resolve)
-      return $nodelist_false->_render($context);
+      foreach ($this->bool_exprs as $be) {
+        list($ifnot, $bool_expr) = $be;
+        $value = $context->resolve($bool_expr);
+        if (($value && !$ifnot) || ($ifnot && !$value)) {
+          return $this->nodelist_true->_render($context);
+        }
+      }
+      return $this->nodelist_false->_render($context);
     } else { // self::LINKTYPE_AND
-      // TODO: 条件判断(resolve)
-      return $nodelist_true>_render($context);
+      foreach ($this->bool_exprs as $be) {
+        list($ifnot, $bool_expr) = $be;
+        $value = $context->resolve($bool_expr);
+        if (!(($value && !$ifnot) || ($ifnot && !$value))) {
+          return $this->nodelist_false>_render($context);
+        }
+      }
+      return $this->nodelist_true>_render($context);
     }
   }
 }
@@ -384,7 +416,7 @@ class GTFilterExpression {
   public function resolve($context) {
     // evalとかcall_user_func_arrayせずにswitch-caseでdispatch、めんどいから
 
-    $val = $context->get($this->var);
+    $val = $context->resolve($this->var);
     foreach ($this->filters as $fil) {
       // TODO: 引数チェック
       switch ($fil[0]) {
@@ -554,8 +586,8 @@ class GTParser {
     return $fpos;
   }
 
-  // 直近のendblockやendifやendforを探す
-  private function find_endtag($spos, &$epos, $endtag) {
+  // 直近のelseやendblockやendifやendforを探す
+  private function find_endtags($spos, &$epos, $endtags) {
     // まず、直近のブロック開始タグを探して
     while (($spos = strpos($this->template, self::BLOCK_TAG_START, $spos)) !== FALSE
            && $spos < $epos) {
@@ -563,8 +595,9 @@ class GTParser {
       if (($lpos = $this->find_closetag($spos, $epos, self::BLOCK_TAG_END)) !== FALSE
           && $lpos < $epos) {
         // その中身をtrimしてチェック
-        if (trim(substr($this->template, $spos, $lpos - $spos)) == $endtag) {
-          return array($spos - 2, $lpos + 2);
+        $c = trim(substr($this->template, $spos, $lpos - $spos));
+        if (in_array($c, $endtags)) {
+          return array($spos - 2, $lpos + 2, $c);
         }
         $spos = $lpos + 2;
       }
@@ -625,7 +658,7 @@ class GTParser {
           return FALSE;
         }
         $lpos += 2;
-        if ((list($bepos, $blpos) = $this->find_endtag($lpos, $epos, 'endblock')) === FALSE) {
+        if ((list($bepos, $blpos) = $this->find_endtags($lpos, $epos, array('endblock'))) === FALSE) {
           return FALSE;
         }
         $nodelist = $this->_parse($lpos, $bepos);
@@ -650,7 +683,7 @@ class GTParser {
           $reversed = False;
         }
         $lpos += 2;
-        if ((list($bepos, $blpos) = $this->find_endtag($lpos, $epos, 'endfor')) === FALSE) {
+        if ((list($bepos, $blpos) = $this->find_endtags($lpos, $epos, array('endfor'))) === FALSE) {
           return FALSE;
         }
         $nodelist = $this->_parse($lpos, $bepos);
@@ -659,23 +692,69 @@ class GTParser {
         break;
       case 'cycle':
         // TODO: implement namedCycleNodes
-        echo "guri1\n";
         if (count($in) != 2) {
           $this->errorStr = 'cycleにはパラメータが１つ必要です。';
           return FALSE;
         }
         $cyclevars = explode(',', $in[1]);
-        echo "guri2\n";
         if (count($cyclevars) == 0) {
           $this->errorStr = 'cycleには,で区切られた文字列が必要です。';
           return FALSE;
         }
-        echo "guri3\n";
         $node = new GTCycleNode($cyclevars);
         $spos = $lpos + 2;
         break;
       case 'if': // else, endif
-        $node = new GTIfNode(bool_exprs, nodelist_true, nodelist_false, link_type);
+        array_shift($in);
+        if (count($in) < 1) {
+          $this->errorStr = 'ifのパラメータがありません。';
+          return FALSE;
+        }
+        $bitstr = implode(' ', $in);
+        $boolpairs = explode(' and ', $bitstr);
+        $boolvars = array();
+        if (count($boolpairs) == 1) {
+          $link_type = GTIfNode::LINKTYPE_OR;
+          $boolpairs = explode(' or ', $bitstr);
+        } else {
+          $link_type = GTIfNode::LINKTYPE_AND;
+          if (in_array(' or ', $bitstr)) {
+            $this->errorStr = 'ifでandとorを混ぜることができません。';
+            return FALSE;
+          }
+        }
+        foreach ($boolpairs as $boolpair) {
+          // notの処理
+          if (in_array(' ', $boolpair)) {
+            // TODO: error handling
+            list($not, $boolvar) = explode(' ', $boolpair);
+            if ($not != 'not') {
+              $this->errorStr = 'ifでnotが入るべきところに別のものが入っています。';
+              return FALSE;
+            }
+            array_push($boolvars, array(True, $boolvar));
+          } else {
+            array_push($boolvars, array(False, $boolpair));
+          }
+        }
+        $lpos += 2;
+        if ((list($bepos, $eblpos, $nexttag) =
+               $this->find_endtags($lpos, $epos, array('else', 'endif'))) === FALSE) {
+          return FALSE;
+        }
+        $nodelist_true = $this->_parse($lpos, $bepos);
+        if ($nextrag == 'else') {
+          if ((list($bepos, $blpos, $nexttag) =
+                    $this->find_endtags($eblpos, $epos, array('endif'))) === FALSE) {
+            return FALSE;
+          }
+          $nodelist_false = $hits->_parse($eblpos, $eblpos);
+          $spos = $blpos;
+        } else {
+          $nodelist_false = new GTNodeList();
+          $spos = $eblpos;
+        }
+        $node = new GTIfNode($bool_exprs, $nodelist_true, $nodelist_false, $link_type);
         break;
       case 'debug':
         $node = new GTDebugNode();
@@ -695,6 +774,7 @@ class GTParser {
         $spos = $lpos + 2;
         break;
       case 'filter':
+        // TODO: implement
         $spos = $lpos + 2;
         break;
       default:
