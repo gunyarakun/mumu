@@ -436,7 +436,6 @@ class MuForNode extends MuNode {
     try {
       $values = $context->resolve($this->sequence);
     } catch (MuValueDoesNotExistException $e) {
-      echo "gya-i ".$this->sequence."\n";
       $values = array();
     }
     if (!is_array($values)) {
