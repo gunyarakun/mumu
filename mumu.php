@@ -521,6 +521,11 @@ class MuIfNode extends MuNode {
 }
 
 class MuIfEqualNode extends MuNode {
+  private $var1;
+  private $var2;
+  private $nodelist_true;
+  private $nodelist_falst;
+  private $negate;
   function __construct($var1, $var2, $nodelist_true, $nodelist_false, $negate) {
     $this->var1 = $var1;
     $this->var2 = $var2;
@@ -542,6 +547,17 @@ class MuIfEqualNode extends MuNode {
       return $this->nodelist_true->_render($context);
     }
     return $this->nodelist_false->_render($context);
+  }
+}
+
+class MuSpacelessNode extends MuNode {
+  private $nodelist;
+  function __construct($nodelist) {
+    $this->nodelist = $nodelist;
+  }
+  public function _render($context) {
+    // MEMO: この実装は問題あると思うけど、Djangoの元の実装にあわせている
+    return preg_replace('/>\s+</', '><', trim($this->nodelist->_render($context)));
   }
 }
 
@@ -989,6 +1005,11 @@ class MuParser {
         }
         $node = new MuIfEqualNode($in[1], $in[2], $nodelist_true, $nodelist_false, $negate);
         break;
+      case 'spaceless':
+        $this->spos = $lpos + 2;
+        list($nodelist) = $this->_parse(array('endspaceless'));
+        $node = new MuSpacelessNode($nodelist);
+        break;
       case 'endblock':
       case 'else':
       case 'endif':
@@ -996,6 +1017,7 @@ class MuParser {
       case 'endfilter':
       case 'endifequal':
       case 'endifnotequal':
+      case 'endspaceless':
         $node = $in[0]; // raw string
         $this->spos = $lpos + 2;
         break;
