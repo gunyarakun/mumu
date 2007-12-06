@@ -64,6 +64,7 @@ POSSIBILITY OF SUCH DAMAGE.
 // |stringformat:"format"       : 指定したフォーマットで値をフォーマット
 // |urlencode                   : urlエンコード
 // |linebreaksbr                : 改行を<br />に変換
+// |date:"format"               : 指定したフォーマットで日付をフォーマット
 
 // 特殊な変数
 // forloop.counter     : 現在のループ回数番号 (1 から数えたもの)
@@ -504,6 +505,7 @@ class MuFilterExpression {
     'stringformat',
     'urlencode',
     'linebreaksbr',
+    'date',
   );
 
   function __construct($token) {
@@ -556,6 +558,9 @@ class MuFilterExpression {
           break;
         case 'linebreaksbr':
           $val = nl2br($val);
+          break;
+        case 'date':
+          $val = date_format($val, $fil[1]);
           break;
         default:
           // どんなフィルタ名がマズかったか教えてあげたいけど、
