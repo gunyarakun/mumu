@@ -35,92 +35,6 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 */
 
-// ●記法
-
-// 変数
-// {{ 変数名 }}             : 変数名で置換
-
-// ブロック
-// {% include "filename" %}     : テンプレートのインクルード
-// {% extends "filename" %}     : テンプレートの拡張
-// {% block blockname %}        : ブロックの始まり
-// {% endblock %}               : ブロックの終わり
-// {% for item in items %}      : 変数itemsからitemを取り出す
-// {% endfor %}                 : forの終わり
-// {% cycle val1,val2 %}        : forループの中でval1,val2を交互に出す(表で行ごと背景色とか)
-// {% if cond %} {% else %}     : cond条件が満たされたところだけを出力
-// {% endif %}                  : ifの終わり
-// {% debug %}                  : テンプレートに渡された情報をダンプする
-// {% now "format" %}           : 現在の日付を指定フォーマットで出力します
-// {% filter fil1|fil2 %}       : ブロック内コンテンツをフィルタにかけます
-// {% endfilter %}              : filterの終わり
-// {% firstof var1 var2 %}      : 渡された変数のうち、falseでない最初の変数
-// {% ifequal var1 var2 %}      : var1 == var2の条件が満たされたら出力
-// {% endifequal %}             : ifequalの終わり
-// {% ifnotequal var1 var2 %}   : var1 == var2の条件が満たされたら出力
-// {% endifnotequal %}          : ifnotequalの終わり
-// {% spaceless %}              : タグの間のスペースを詰めます
-// {% endspaceless %}           : spacelessの終わり
-// {% templatetag tagname %}    : templateの構成に使われる文字字体を出力します
-// {% comment %}                : コメントです。出力されません。
-// {% endcomment %}             : コメントの終わりです。
-// {% widthratio val max mul %} : (val / max) * mulを出力します
-// {# comment  #}               : コメント
-
-// パイプ
-// {{ 変数名|パイプ1|パイプ2 }} : 変数をフィルタして出力する
-// |addslashes                  : \を\\に。JavaScriptに値渡したりとかに便利かな
-// |length                      : 配列の長さ
-// |escape                      : %<>"'のエスケープ
-// |stringformat:"format"       : 指定したフォーマットで値をフォーマット
-// |urlencode                   : urlエンコード
-// |linebreaksbr                : 改行を<br />に変換
-// |date:"format"               : 指定したフォーマットで日付をフォーマット
-// |join:"str"                  : strをはさんで配列を連結
-// |add                         : 
-// |capfirst                    : 
-// |center                      : 
-// |cut                         : 
-// |default                     : 
-// |default_if_none             : 
-// |divisibleby                 : 
-// |filesizeformat              : 
-// |first                       : 
-// |fix_ampersands              : 
-// |floatformat                 : 
-// |get_digit                   : 
-// |length_is                   : 
-// |linebreaks                  : 
-// |linenumbers                 : 
-// |ljust                       : 
-// |lower                       : 
-// |make_list                   : 
-// |pprint                      : 
-// |random                      : 
-// |removetags                  : 
-// |rjust                       : 
-// |slice                       : 
-// |striptags                   : 
-// |title                       : 
-// |truncatewords               : 
-// |upper                       : 
-// |wordcount                   : 
-// |wordwrap                    : 
-// |yesno                       : 
-
-// 特殊な変数
-// forloop.counter     : 現在のループ回数番号 (1 から数えたもの)
-// forloop.counter0    : 現在のループ回数番号 (0 から数えたもの)
-// forloop.revcounter  : 末尾から数えたループ回数番号 (1 から数えたもの)
-// forloop.revcounter0 : 末尾から数えたループ回数番号 (0 から数えたもの)
-// forloop.first       : 最初のループであれば true になります
-// forloop.last        : 最後のループであれば true になります
-// forloop.parentloop  : 入れ子のループの場合、一つ上のループを表します
-// block.super         : 親テンプレートのblockの中身を取り出す。内容を追加する場合に便利。
-
-// 実装メモ
-// FIXMEを全部直すように。
-
 class MuUtil {
   public static function redirect($rel_path) {
     $host = $_SERVER['HTTP_HOST'];
@@ -140,10 +54,10 @@ class MuUtil {
         strlen($domain) < 1 || strlen($domain) > 255 ||
         !preg_match('/^[A-Za-z0-9\\-\\.]+$/', $domain) ||
         preg_match('/\\.\\./', $domain) ||
-        !preg_match('/^(\\\\[\\x00-\\x7e]|[A-Za-z0-9!#%&`_=\\/$\'*+?^{}|~.-])+$/',
+        !preg_match('/^(\\\\.|[A-Za-z0-9!#%&`_=\\/$\'*+?^{}|~.-])+$/',
                     $local) ||
         // strict check(dot)
-        $strict && 
+        $strict &&
         ($local[0] == '.' || $local[$locallen - 1] == '.' ||
          preg_match('/\\.\\./', $local)) ||
         // DNS resolve
@@ -194,15 +108,13 @@ class MuValueDoesNotExistException extends Exception
 }
 
 class MuContext {
-  // テンプレートに当てはめる値の情報を保持するクラス
   private $dicts;
   const VARIABLE_ATTRIBUTE_SEPARATOR = '.';
   function __construct($dict = array()) {
     $this->dicts = array($dict);
   }
-  // ドット連結表現から値を取り出す
   function resolve($expr) {
-    // TODO: ここのチェックやexplodeってパース時に事前にやっておいたらええんとちゃう？
+    // TODO: check/explode on parse time
     if (is_numeric($expr)) {
       $current = (strpos($expr, '.') === false) ? intval($expr) : floatval($expr);
     } elseif (($expr{0} == "'" || $expr{0} ==  '"') &&
@@ -214,10 +126,9 @@ class MuContext {
       array_shift($bits);
       while ($bits) {
         if (is_array($current) && array_key_exists($bits[0], $current)) {
-          // arrayからの辞書引き(配列キーもコレと一緒)
           $current = $current[$bits[0]];
         } elseif (method_exists($current, $bits[0])) {
-          // メソッドコール
+          // method call
           if (($current = call_user_func(array($current, $bits[0]))) === false) {
             return 'method call error';
           }
@@ -328,13 +239,12 @@ class MuErrorNode implements MuNode {
   }
 }
 
-// 1つのテンプレートをパースしたもの。
 class MuFile implements MuNode {
-  public $nodelist;        // ファイルをパースしたNodeList
-  private $block_dict;     // nodelistの中にあるblock名 => MuBlockNode(の参照)
-  public $include_paths;   // includeしたファイル名一覧（キャッシュの確認で使う）
-  public $path;            // 自分のファイル名
-  private $parent_tfile;   // extendsがある場合の親テンプレート
+  public $nodelist;
+  private $block_dict;
+  public $include_paths;
+  public $path;
+  private $parent_tfile;
   function __construct($nodelist, $block_dict, $include_paths,
                        $path = null, $parent_path = null) {
     $this->nodelist = $nodelist;
@@ -377,16 +287,12 @@ class MuFile implements MuNode {
     }
   }
   public function append_block($blocknode) {
-    // 孫で定義されたブロック名で、親には定義されていないが、
-    // 親の親には定義されている場合のため、
-    // 孫から親にブロックを移す
     $this->nodelist->push($blocknode);
     $this->block_dict[$blocknode->name] = $blocknode;
   }
   public function is_child() {
     return (isset($this->parent_tfile));
   }
-  // extendsやincludeしているファイルがキャッシュ生成よりあとに更新されているか
   public function check_cache_mtime($cache_mtime) {
     foreach ($this->include_paths as $inc_path) {
       if ($cache_mtime < filemtime($inc_path)) {
@@ -460,7 +366,7 @@ class MuBlockNode implements MuNode {
   public function _render($context) {
     $context->push();
     $this->context = $context;
-    $context->set('block', $this); // block.super用
+    $context->set('block', $this); // for block.super
     $res = $this->nodelist->_render($context);
     $context->pop();
     return $res;
@@ -673,7 +579,7 @@ class MuSpacelessNode implements MuNode {
     $this->nodelist = $nodelist;
   }
   public function _render($context) {
-    // MEMO: この実装は問題あると思うけど、Djangoの元の実装にあわせている
+    // MEMO: from Django, but sometimes buggy?
     return preg_replace('/>\s+</', '><', trim($this->nodelist->_render($context)));
   }
 }
@@ -798,13 +704,7 @@ class MuFilterExpression {
   );
 
   function __construct($token) {
-    // $token = 'variable|default:"Default value"|date:"Y-m-d"'
-    // ってのがあったら、
-    // $this->var = 'variable'
-    // $this->filters = 'array(array('default, 'Default value'), array('date', 'Y-m-d'))'
-    // ってする。
-    // Djangoのは_で始まったらいけないらしい。
-
+    // NOTE: now allow: start with '_'
     $fils = MuParser::smart_split(trim($token), '|', false, True);
     $this->var = array_shift($fils);
     $this->filters = array();
@@ -818,17 +718,14 @@ class MuFilterExpression {
 
   // TODO: support ignore_failures
   public function resolve($context) {
-    // evalとかcall_user_func_arrayせずにswitch-caseでdispatch、めんどいから
-
     $val = $context->resolve($this->var);
     foreach ($this->filters as $fil) {
-      // TODO: 引数チェック
+      // TODO: check args
       switch ($fil[0]) {
         case 'addslashes':
           $val = addslashes($val);
           break;
         case 'length':
-          # arrayはcount、stringはstrlen(length_isも)
           if (is_array($val)) {
             $val = count($val);
           } else if (is_string($val)) {
@@ -846,7 +743,7 @@ class MuFilterExpression {
           $val = htmlspecialchars($val, ENT_QUOTES);
           break;
         case 'stringformat':
-          // $fil[1]にヤバい文字入らないように気をつけるんだよ
+          // NOTE: check $fil[1]
           $val = sprintf($fil[1], $val);
           break;
         case 'urlencode':
@@ -1042,10 +939,7 @@ class MuFilterExpression {
           }
           break;
         default:
-          // どんなフィルタ名がマズかったか教えてあげたいけど、
-          // 出力先で意味持った文字列入ってるとマズいから不親切に
-
-          // TODO: フィルタ名をアルファベットと_とかのみにフィルタしておく
+          // TODO: output wrong filter name with escape
           $val = 'unknown filter specified';
       }
     }
@@ -1058,13 +952,13 @@ class MuParserException extends Exception
 }
 
 class MuParser {
-  private $template;                // パース前のテンプレート文字列
-  private $template_len;            // テンプレート文字列の長さ
-  private $template_path;           // テンプレートのパス(あれば)
-  private $block_dict = array();    // blockの名前 => blockへの参照
-  private $extends;                 // extendsのファイル名
-  private $include_paths = array(); // includeしているファイル名の一覧
-  private $spos = 0;                // 現在パース中の位置
+  private $template;
+  private $template_len;
+  private $template_path;
+  private $block_dict = array();
+  private $extends;
+  private $include_paths = array();
+  private $spos = 0;
 
   # template syntax constants
   const FILTER_SEPARATOR = '|';
@@ -1078,7 +972,7 @@ class MuParser {
   const COMMENT_TAG_END = '#}';
   const SINGLE_BRACE_START = '{';
   const SINGLE_BRACE_END = '}';
-  // FIXME: タグの長さである定数2がパーサの中に散らばってます
+  // FIXME: remove const value 2
 
   function __construct($template, $template_path = null) {
     $this->template = $template;
@@ -1086,12 +980,6 @@ class MuParser {
     $this->template_path = $template_path;
   }
 
-  // "や'でクオートされたものを除いてスペースで分割
-  // "や'内で"'を使う場合には、\"\'とする。
-  // 素直に正規表現で書けばよかったか、まあいっか。
-  // マルチバイトセーフなデリミタを使うように気をつけるんだよ
-  // $decode : quote中の\でのエスケープを解釈して展開するかどうか
-  // $quote  : quote文字そのものも出力するかどうか
   static public function smart_split($text, $delimiter = ' ', $decode = True, $quote = True) {
     $epos = strlen($text);
     $ret = array();
@@ -1101,7 +989,6 @@ class MuParser {
       $a = $text[$spos];
       switch ($a) {
         case '\\':
-          // 何度もsmart_splitする場合は$decodeをfalseにしておく(ex. filter)
           if (!$decode && $mode != 'n') {
             $buf .= '\\';
           }
@@ -1187,7 +1074,6 @@ class MuParser {
     return $ret;
   }
 
-  // 終了タグ(#}とか)を探して、その位置を返す
   private function find_closetag($closetag) {
     if (($fpos = strpos($this->template, $closetag, $this->spos)) === false) {
       throw new MuParserException('cannot find $closetag');
@@ -1216,14 +1102,12 @@ class MuParser {
     return new MuErrorNode($errorCode, $this->template_path, $ln);
   }
 
-  // {% %}の中身をパースして、MuNodeを返す。
-  // extendsは頭に書かないといけない
   private function parse_block() {
     $this->spos += 2;
     $lpos = $this->find_closetag(self::BLOCK_TAG_END);
     $in = $this->smart_split(substr($this->template, $this->spos, $lpos - $this->spos));
     switch ($in[0]) {
-      // TODO: 引数の数チェックを全般
+      // TODO: check types of args
       case 'extends':
         if (isset($this->extends)) {
           return $this->make_errornode('multiple_extends_tag');
@@ -1233,7 +1117,7 @@ class MuParser {
         }
         $param = explode('"', $in[1]);
         if (count($param) != 3) {
-          // Djangoは変数もOKだけどね
+          // TODO: allow variable
           return $this->make_errornode('invalidparam_extends_tag');
         }
         $this->extends = $param[1];
@@ -1245,7 +1129,7 @@ class MuParser {
         }
         $param = explode('"', $in[1]);
         if (count($param) != 3) {
-          // Djangoは変数もOKだけどね
+          // TODO: allow variable
           return $this->make_errornode('invalidparam_include_tag');
         }
         $this->spos = $lpos + 2;
@@ -1253,7 +1137,6 @@ class MuParser {
         $tplfile = $node->get_tplfile();
         $this->include_paths[] = $tplfile->path;
         unset($tplfile->path);
-        // インクルードのインクルード先が更新されたらキャッシュも更新
         if (isset($tplfile->include_paths)) {
           $this->include_paths = array_merge($this->include_paths, $tplfile->include_paths);
           unset($tplfile->include_paths);
@@ -1420,7 +1303,7 @@ class MuParser {
           return $this->make_errornode('invalidparam_widthratio_tag');
         }
         $this->spos = $lpos + 2;
-        // MEMO: $in[3]はfloatかもしらんがな…
+        // MEMO: $in[3] may be float...
         $node = new MuWidthRatioNode(new MuFilterExpression($in[1]),
                                      new MuFilterExpression($in[2]), intval($in[3]));
         break;
@@ -1464,7 +1347,7 @@ class MuParser {
   }
 
   static public function parse_from_file($template_path, $serialize_store = null, $remake_cache = true) {
-    // キャッシュのチェック
+    // check cache
     if (isset($serialize_store)) {
       if (stristr($serialize_store, 'file://') == 0) {
         // TODO: check whether absolute path or not
@@ -1492,7 +1375,7 @@ class MuParser {
         return false;
       }
     }
-    // キャッシュになかったら生成
+    // parse
     if (($t = file_get_contents($template_path)) === false) {
       return false;
     }
@@ -1504,7 +1387,7 @@ class MuParser {
       $nl->push($p->make_errornode($e->getMessage()));
     }
     $mf = new MuFile($nl, $p->block_dict, $p->include_paths, $template_path, $p->extends);
-    // 指定したキャッシュに保存
+    // save cache
     if (isset($sfpath)) {
       MuInternal::serialize_to_file($mf, $sfpath);
     }
