@@ -205,6 +205,7 @@ class MuErrorNode extends MuNode {
     'invalidparam_now_tag' => 'Invalid parameter(s) specified to now tag',
     'numofparam_filter_tag' => 'Number of parameters are invalid to filter tag',
     'invalidparam_filter_tag' => 'Invalid parameter(s) specified to filter tag',
+    'numofparam_firstof_tag' => 'Number of parameters are invalid to firstof tag',
     'invalidparam_filter_variable' => 'Invalid filter name',
     'unknown_tag' => 'Unknown tag is specified',
     'unknown' => 'Unknown error. Maybe bugs in MuMu'
