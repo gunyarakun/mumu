@@ -54,6 +54,7 @@ POSSIBILITY OF SUCH DAMAGE.
 // {% now "format" %}       : 現在の日付を指定フォーマットで出力します
 // {% filter fil1|fil2 %}   : ブロック内コンテンツをフィルタにかけます
 // {% endfilter %}          : filterの終わり
+// {% firstof var1 var2 %}  : 渡された変数のうち、Falseでない最初の変数
 // {# comment #}            : コメント
 
 // パイプ
@@ -91,6 +92,10 @@ class MuUtil {
   }
 }
 
+class MuValueDoesNotExistException extends Exception
+{
+}
+
 class MuContext {
   // テンプレートに当てはめる値の情報を保持するクラス
   private $dicts;
@@ -113,7 +118,7 @@ class MuContext {
           return 'method call error';
         }
       } else {
-        return false;
+        throw new MuValueDoesNotExistException("Failed lookup for key [${bits[0]}]");
       }
       array_shift($bits);
     }
@@ -125,15 +130,17 @@ class MuContext {
         return True;
       }
     }
-    return False;
+    return false;
   }
   function get($key) {
     foreach ($this->dicts as $dict) {
       if (array_key_exists($key, $dict)) {
         return $dict[$key];
+      } else {
+        throw new MuValueDoesNotExistException("Failed lookup for key [$key]");
       }
     }
-    return null;
+    return false;
   }
   function set($key, $value) {
     $this->dicts[0][$key] = $value;
@@ -290,7 +297,11 @@ class MuVariableNode extends MuNode {
     $this->filter_expression = $filter_expression;
   }
   public function _render($context) {
-    return $this->filter_expression->resolve($context);
+    try {
+      return $this->filter_expression->resolve($context);
+    } catch (MuValueDoesNotExistException $e) {
+      return $e->getMessage();
+    }
   }
 }
 
@@ -394,7 +405,11 @@ class MuFilterNode extends MuNode {
   function _render($context) {
     $output = $this->nodelist->_render($context);
     $context->update(array('var' => $output));
-    $filtered = $this->filter_expr->resolve($context);
+    try {
+      $filtered = $this->filter_expr->resolve($context);
+    } catch (MuValueDoesNotExistException $e) {
+      $filtered = '';
+    }
     $context->pop();
     return $filtered;
   }
@@ -419,7 +434,9 @@ class MuForNode extends MuNode {
       $parentloop = new MuContext();
     }
     $context->push();
-    if (!($values = $context->resolve($this->sequence))) {
+    try {
+      $values = $context->resolve($this->sequence);
+    } catch (MuValueDoesNotExistException $e) {
       $values = array();
     }
     if (!is_array($values)) {
@@ -465,7 +482,11 @@ class MuIfNode extends MuNode {
     if ($this->link_type == self::LINKTYPE_OR) {
       foreach ($this->bool_exprs as $be) {
         list($ifnot, $bool_expr) = $be;
-        $value = $context->resolve($bool_expr);
+        try {
+          $value = $context->resolve($bool_expr);
+        } catch (MuValueDoesNotExistException $e) {
+          $value = '';
+        }
         if (($value && !$ifnot) || ($ifnot && !$value)) {
           return $this->nodelist_true->_render($context);
         }
@@ -474,7 +495,11 @@ class MuIfNode extends MuNode {
     } else { // self::LINKTYPE_AND
       foreach ($this->bool_exprs as $be) {
         list($ifnot, $bool_expr) = $be;
-        $value = $context->resolve($bool_expr);
+        try {
+          $value = $context->resolve($bool_expr);
+        } catch (MuValueDoesNotExistException $e) {
+          $value = '';
+        }
         if (!(($value && !$ifnot) || ($ifnot && !$value))) {
           return $this->nodelist_false->_render($context);
         }
@@ -491,6 +516,25 @@ class MuNowNode extends MuNode {
   }
   public function _render($context) {
     return date($this->format_string);
+  }
+}
+
+class MuFirstOfNode extends MuNode {
+  private $vars;
+  function __construct($vars) {
+    $this->vars = $vars;
+  }
+  public function _render($context) {
+    foreach ($this->vars as $var) {
+      try {
+        $value = $context->resolve($var);
+      } catch (MuValueDoesNotExistException $e) {
+      }
+      if (isset($value)) {
+        return $value;
+      }
+    }
+    return '';
   }
 }
 
@@ -883,6 +927,14 @@ class MuParser {
         }
         list($nodelist) = $this->_parse(array('endfilter'));
         $node = new MuFilterNode($filter_expr, $nodelist);
+        break;
+      case 'firstof':
+        if (count($in) < 2) {
+          return $this->make_errornode('numofparam_firstof_tag');
+        }
+        array_shift($in);
+        $this->spos = $lpos + 2;
+        $node = new MuFirstOfNode($in);
         break;
       case 'endblock':
       case 'else':
