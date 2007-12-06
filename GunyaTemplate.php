@@ -787,7 +787,7 @@ class GTParser {
           $this->errorStr = 'filterのパラメータがありません。';
           return FALSE;
         }
-        $spos += 2;
+        $spos = $lpos + 2;
         $filter_expr = new GTFilterExpression('var|'. $in[1]);
         list($nodelist) = $this->_parse($spos, array('endfilter'));
         $node = new GTFilterNode($filter_expr, $nodelist);
