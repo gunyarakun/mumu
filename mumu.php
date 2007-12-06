@@ -223,6 +223,10 @@ class MuErrorNode extends MuNode {
     'invalidparam_filter_tag' => 'Invalid parameter(s) specified to filter tag',
     'numofparam_firstof_tag' => 'Number of parameters are invalid to firstof tag',
     'numofparam_ifequal_tag' => 'Number of parameters are invalid to ifequal/ifnotequal tag',
+    'numofparam_templatetag_tag' => 'Number of parameters are invalid to templatetag tag',
+    'invalidparam_templatetag_tag' => 'Invalid parameter(s) specified to templatetag tag',
+    'numofparam_widthratio_tag' => 'Number of parameters are invalid to widthratio tag',
+    'invalidparam_widthratio_tag' => 'Invalid parameter(s) specified to widthratio tag',
     'invalidparam_filter_variable' => 'Invalid filter name',
     'unknown_tag' => 'Unknown tag is specified',
     'unknown' => 'Unknown error. Maybe bugs in MuMu'
