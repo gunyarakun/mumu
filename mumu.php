@@ -183,12 +183,12 @@ class MuFile extends MuNode {
       foreach ($this->block_dict as $blockname => $blocknode) {
         if (($parent_block = $this->parent_tfile->get_block($blockname)) === FALSE) {
           if ($this->parent_tfile->is_child()) {
-            $this->parent_tfile->append_block(&$blocknode);
+            $this->parent_tfile->append_block($blocknode);
           }
         } else {
-          $parent_block->parent = &$blocknode->parent;
-          $parent_block->add_parent(&$parent_block->nodelist);
-          $parent_block->nodelist = &$blocknode->nodelist;
+          $parent_block->parent = $blocknode->parent;
+          $parent_block->add_parent($parent_block->nodelist);
+          $parent_block->nodelist = $blocknode->nodelist;
         }
       }
       return $this->parent_tfile->_render($context);
@@ -208,7 +208,7 @@ class MuFile extends MuNode {
     // 親の親には定義されている場合のため、
     // 孫から親にブロックを移す
     $this->nodelist->push($blocknode);
-    $this->block_dict[$blocknode->name] = &$blocknode;
+    $this->block_dict[$blocknode->name] = $blocknode;
   }
   public function is_child() {
     return ($parent_tfile !== FALSE);
@@ -263,7 +263,7 @@ class MuBlockNode extends MuNode {
   }
   public function _render($context) {
     $context->push();
-    $this->context = &$context;
+    $this->context = $context;
     $context->set('block', $this); // block.super用
     $res = $this->nodelist->_render($context);
     $context->pop();
@@ -633,7 +633,7 @@ class MuParser {
   }
 
   // 終了タグ(#}とか)を探して、その位置を返す
-  private function find_closetag(&$spos, $closetag) {
+  private function find_closetag($spos, $closetag) {
     if (($fpos = strpos($this->template, $closetag, $spos)) === FALSE) {
       $this->errorStr = "タグが閉じられてないようです($closetagが見つかりません)。";
       return FALSE;
@@ -695,7 +695,7 @@ class MuParser {
         $spos = $lpos + 2;
         list($nodelist) = $this->_parse($spos, array('endblock'));
         $node = new MuBlockNode($blockname, $nodelist);
-        $this->block_dict[$blockname] = &$node; // reference
+        $this->block_dict[$blockname] = $node;
         break;
       case 'for': // endfor
         // $in[1] = $loopvar, $in[2] = 'in', $in[3] = $sequence, $in[4] = 'reversed'
@@ -855,7 +855,7 @@ class MuParser {
     return new MuFile($nl, $p->block_dict);
   }
 
-  private function add_textnode(&$nodelist, &$tspos, &$epos) {
+  private function add_textnode($nodelist, $tspos, $epos) {
     if ($tspos < $epos) {
       $nodelist->push(new MuTextNode(
         substr($this->template, $tspos, $epos - $tspos)));
