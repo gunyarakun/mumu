@@ -77,6 +77,36 @@ POSSIBILITY OF SUCH DAMAGE.
 // |linebreaksbr                : 改行を<br />に変換
 // |date:"format"               : 指定したフォーマットで日付をフォーマット
 // |join:"str"                  : strをはさんで配列を連結
+// |add                         : 
+// |capfirst                    : 
+// |center                      : 
+// |cut                         : 
+// |default                     : 
+// |default_if_none             : 
+// |divisibleby                 : 
+// |filesizeformat              : 
+// |first                       : 
+// |fix_ampersands              : 
+// |floatformat                 : 
+// |get_digit                   : 
+// |length_is                   : 
+// |linebreaks                  : 
+// |linenumbers                 : 
+// |ljust                       : 
+// |lower                       : 
+// |make_list                   : 
+// |pprint                      : 
+// |random                      : 
+// |removetags                  : 
+// |rjust                       : 
+// |slice                       : 
+// |striptags                   : 
+// |title                       : 
+// |truncatewords               : 
+// |upper                       : 
+// |wordcount                   : 
+// |wordwrap                    : 
+// |yesno                       : 
 
 // 特殊な変数
 // forloop.counter     : 現在のループ回数番号 (1 から数えたもの)
