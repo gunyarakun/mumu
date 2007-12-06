@@ -105,22 +105,28 @@ class MuContext {
   }
   // ドット連結表現から値を取り出す
   function resolve($expr) {
-    $bits = explode(self::VARIABLE_ATTRIBUTE_SEPARATOR, $expr);
-    $current = $this->get($bits[0]);
-    array_shift($bits);
-    while ($bits) {
-      if (is_array($current) && array_key_exists($bits[0], $current)) {
-        // arrayからの辞書引き(配列キーもコレと一緒)
-        $current = $current[$bits[0]];
-      } elseif (method_exists($current, $bits[0])) {
-        // メソッドコール
-        if (($current = call_user_func(array($current, $bits[0]))) === FALSE) {
-          return 'method call error';
-        }
-      } else {
-        throw new MuValueDoesNotExistException("Failed lookup for key [${bits[0]}]");
-      }
+    if (ctype_digit($expr)) {
+      $current = (strpos($expr, '.') === FALSE) ? intval($expr) : floatval($expr);
+    } elseif (in_array($expr{0}, array("'", '"')) && $expr{0} == $expr{-1}) {
+      $current = substr($expr, 1, strlen($expr) - 2);
+    } else {
+      $bits = explode(self::VARIABLE_ATTRIBUTE_SEPARATOR, $expr);
+      $current = $this->get($bits[0]);
       array_shift($bits);
+      while ($bits) {
+        if (is_array($current) && array_key_exists($bits[0], $current)) {
+          // arrayからの辞書引き(配列キーもコレと一緒)
+          $current = $current[$bits[0]];
+        } elseif (method_exists($current, $bits[0])) {
+          // メソッドコール
+          if (($current = call_user_func(array($current, $bits[0]))) === FALSE) {
+            return 'method call error';
+          }
+        } else {
+          throw new MuValueDoesNotExistException("Failed lookup for key [${bits[0]}]");
+        }
+        array_shift($bits);
+      }
     }
     return $current;
   }
