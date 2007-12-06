@@ -857,7 +857,6 @@ class GTParser {
     $nl = new GTNodeList();
     $tspos = $spos;
     while (true) {
-      echo "*** spos:$spos tspos:$tspos\n";
       $spos = strpos($this->template, self::SINGLE_BRACE_START, $spos);
       if ($spos === FALSE) {
         $this->add_textnode($nl, $tspos, $this->template_len);
