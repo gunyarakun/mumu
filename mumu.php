@@ -328,9 +328,10 @@ class MuVariableNode extends MuNode {
 
 class MuIncludeNode extends MuNode {
   private $tplfile;
-  function __construct($includePath) {
+  function __construct($includePath, $path) {
     // FIXME: セキュリティチェック、無限ループチェック
-    if (($this->tplfile = MuParser::parse_from_file($includePath)) === FALSE) {
+    $epath = MuUtil::getpath($path, $includePath);
+    if (($this->tplfile = MuParser::parse_from_file($epath)) === FALSE) {
       // TODO: エラー起こしたテンプレート名を安全に教えてあげる
       $this->tplfile = $this->make_errornode('invalidfilename_include');
     }
