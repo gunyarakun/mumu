@@ -91,12 +91,19 @@ class GTTextNode extends GTNode {
   function __construct($text) {
     $this->text = $text;
   }
-  function render($context) {
+  public function render($context) {
     return $this->text;
   }
 }
 
 class GTVariableNode extends GTNode {
+  private $filter_expression;
+  function __construct($filter_expression) {
+    $this->filter_expression = $filter_expression;
+  }
+  public function render($context) {
+    return $filter_expression->resolve($context);
+  }
 }
 
 class GTExtendsNode extends GTNode {
@@ -151,14 +158,38 @@ class GTNowNode extends GTNode {
   function __construct($format_string) {
     $this->format_string = $format_string;
   }
-  function render($context) {
+  public function render($context) {
     return date($this->format_string);
   }
 }
 
 class GTUnknownNode extends GTNode {
-  function render($context) {
+  public function render($context) {
     return 'unknown...';
+  }
+}
+
+class GTFilterExpression {
+  private $var;
+  private $filters;
+
+  function __construct($token) {
+    // $token = 'variable|default:"Default value"|date:"Y-m-d"'
+    // ってのがあったら、
+    // $this->var = 'variable'
+    // $this->filters = 'array(array('default, 'Default value'), array('date', 'Y-m-d'))'
+    // ってする。
+    // Djangoのは_で始まったらいけないらしい。
+    $fils = GTParser::smart_split($token, '|');
+    $this->var = array_shift($fils);
+    foreach ($fils as $fil) {
+      $fils = GTParser::smart_split($fil, ':');
+    }
+  }
+
+  // TODO: support ignore_failures
+  public function resolve($context) {
+
   }
 }
 
@@ -187,7 +218,8 @@ class GTParser {
   // "や'でクオートされたものを除いてスペースで分割
   // "や'内で"'を使う場合には、\"\'とする。
   // 素直に正規表現で書けばよかったか、まあいっか。
-  private function smart_split($text) {
+  // マルチバイトセーフなデリミタを使うように気をつけるんだよ
+  static public function smart_split($text, $delimiter = ' ') {
     $epos = strlen($text);
     $ret = array();
     $mode = 'n';  // 'n': not quoted, 'd': in ", 'q': in '
@@ -223,48 +255,36 @@ class GTParser {
           }
           break;
         case "'":
+          $buf .= "'";
           switch ($mode) {
             case 'd':
-              $buf .= "'";
               break;
             case 'q':
-              array_push($ret, $buf);
               $mode = 'n';
-              $buf = '';
               break;
             default:
-              if ($buf != '') {
-                array_push($ret, $buf);
-              }
               $mode = 'q';
-              $buf = '';
               break;
           }
           break;
         case '"':
+          $buf .= '"';
           switch ($mode) {
             case 'd':
-              array_push($ret, $buf);
               $mode = 'n';
-              $buf = '';
               break;
             case 'q':
-              $buf .= '"';
               break;
             default:
-              if ($buf != '') {
-                array_push($ret, $buf);
-              }
               $mode = 'd';
-              $buf = '';
               break;
           }
           break;
-        case ' ':
+        case $delimiter:
           switch ($mode) {
             case 'd':
             case 'q':
-              $buf .= ' ';
+              $buf .= $delimiter;
               break;
             default:
               if ($buf != '') {
@@ -334,7 +354,12 @@ class GTParser {
           $this->errorStr = 'nowは書式文字列が必要です';
           return FALSE;
         }
-        $node = new GTNowNode($in[1]);
+        $param = explode('"', $in[1]);
+        if (count($param) != 3) {
+          $this->errorStr = 'nowの書式文字列は"でくくってください';
+          return FALSE;
+        }
+        $node = new GTNowNode($param[1]);
         break;
       default:
         $node = new GTUnknownNode();
@@ -344,20 +369,13 @@ class GTParser {
     return $node;
   }
 
-  // こんな感じに加工
-  // 前: variable|filter1|filter2:"test"|filter3
-  // 後: array('variable', array('filter1'), array(filter2, 'test'), array('filter3'))
-  // したあとに、
-
   // {{ }}の中身をパース
   private function parse_variable(&$spos) {
     $spos += 2;
     if (($epos = find_closetag($this->template, $spos, self::VARIABLE_TAG_END)) === FALSE) {
       return FALSE;
     }
-    // TODO: use limit for explode
-    $in = explode(' ', trim(substr($this->template, $spos, $epos)));
-
+    $in = $this->smart_split(substr($this->template, $spos, $epos));
     $spos = $epos + 2;
   }
 
@@ -426,6 +444,8 @@ class GTParser {
     }
     return $nl;
   }
+}
 
+class GunyaTemplate {
 }
 ?>
