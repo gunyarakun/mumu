@@ -11,9 +11,9 @@
 // - テンプレート内でループが扱える
 // - テンプレートファイルを直にhtmlとして閲覧可能
 // - urlエンコードやhtmlspecialcharsを簡単に指定できる
-// - PHP4以上で動くように、と思ったけどあきらめた
+// - PHP5は要求するよ
 
-// 使い方の概要
+// 使い方の概要(の目標)
 // - すべてのデータをハッシュに入れる（事前に全データを準備しないといけない）
 // - テンプレートファイルを指定する
 // - 処理する(キャッシュの有無も指定できる)
@@ -86,6 +86,39 @@ class GTNodeList {
   }
 }
 
+// 1テンプレートファイル。
+class GTFile {
+  private $nodelist;        // ファイルをパースしたNodeList
+  private $extends_index;   // nodelistの中でextendsのものの位置
+  private $block_dict;      // nodelistの中にあるblock名 => nodelist内位置
+  function __construct($nodelist, $extends_index, $block_dict) {
+    $this->nodelist = $nodelist;
+    $this->extends_index = $extends_index;
+    $this->block_dict = $block_dict;
+  }
+  function render($context) {
+    return $this->nodelist->render($context);
+  }
+  function get_block($blockname) {
+    if (array_key_exists($blockname, $block_dict)) {
+      return $nodelist[$block_dict[$blockname]];
+    } else {
+      return false;
+    }
+  }
+  function append_block($blocknode) {
+    // 孫で定義されたブロック名で、親には定義されていないが、
+    // 親の親には定義されている場合のため、
+    // 孫から親にブロックを移す
+
+    // こいつの型はGTExtendsNode
+    $nodelist[$extends_index]->append_block($blocknode);
+  }
+  function is_child() {
+    return is_numeric($extends_index);
+  }
+}
+
 class GTTextNode extends GTNode {
   private $text;
   function __construct($text) {
@@ -107,9 +140,48 @@ class GTVariableNode extends GTNode {
 }
 
 class GTExtendsNode extends GTNode {
+  private $nodelist;
+  private $block_dict;
+  private $parent_tplfile;
+  function __construct($nodelist, $block_dict, $parentPath) {
+    // FIXME: セキュリティチェック、無限ループチェック
+    $this->nodelist = $nodelist;
+    $this->block_dict = $block_dict;
+    $p = new GTParser();
+    if (($this->parent_tplfile = $p->parse_from_file($parentPath)) === FALSE) {
+      // TODO: エラー起こしたテンプレート名を安全に教えてあげる
+    }
+  }
+
+  function render($context) {
+    if ($parent_nodelist) {
+      $parent_is_child = $parent_tplfile->is_child();
+      $bidxs = $parent_tplfile->get_block_indexes();
+      foreach ($bidxs as $bidx) {
+      }
+    } else {
+      return 'extends error';
+    }
+  }
+
+  function append_block($blocknode) {
+    array_push($this->nodelist, $blocknode);
+  }
 }
 
 class GTIncludeNode extends GTNode {
+  private $tplfile;
+  function __construct($includePath) {
+    // FIXME: セキュリティチェック、無限ループチェック
+    $p = new GTParser();
+    if (($this->tplfile = $p->parse_from_file($includePath)) === FALSE) {
+      // TODO: エラー起こしたテンプレート名を安全に教えてあげる
+      $this->tplfile = array(new GTTextNode('include error'));
+    }
+  }
+  public function render($context) {
+    return $this->tplfile>render($context);
+  }
 }
 
 class GTBlockNode extends GTNode {
@@ -193,7 +265,7 @@ class GTFilterExpression {
 
   // TODO: support ignore_failures
   public function resolve($context) {
-    // evalとかcall_user_func_arrayせずにswitch-caseで
+    // evalとかcall_user_func_arrayせずにswitch-caseでdispatch、めんどいから
 
     // TODO: resolve_variable
     $val = $context[$this->var];
@@ -212,15 +284,11 @@ class GTFilterExpression {
           }
           break;
         case 'escape':
-          if (is_array($val)) {
-            $val = count($val);
-          } else if (is_string($val)) {
-            $val = strlen($val);
-          }
+          $val = htmlspecialchars($val);
           break;
         case 'stringformat':
           // $fil[1]にヤバい文字入らないように気をつけるんだよ
-          $val = printf($fil[1], $var);
+          $val = sprintf($fil[1], $val);
           break;
         case 'urlencode':
           $val = urlencode($val);
@@ -228,6 +296,12 @@ class GTFilterExpression {
         case 'linebreaksbr':
           $val = nl2br($val);
           break;
+        default:
+          // どんなフィルタ名がマズかったか教えてあげたいけど、
+          // 出力先で意味持った文字列入ってるとマズいから不親切に
+
+          // TODO: フィルタ名をアルファベットと_とかのみにフィルタしておく
+          $val = 'unknown filter specified';
       }
     }
     return $val;
@@ -235,13 +309,10 @@ class GTFilterExpression {
 }
 
 class GTParser {
-  private $template; // パース前のテンプレート文字列
-  private $errorStr; // エラー文字列
-  private $ptemplate; // パース後のテンプレート(Nodeのarray)
-
-  // パース用
-  private $blockmode; // 'f': for, 'i': if, 'e': else
-  private $outmode;   // 'a': 追加 'i': 無視 'b': ブロックに追加
+  private $template;        // パース前のテンプレート文字列
+  private $errorStr;        // エラー文字列
+  private $block_dict;      // blockの名前 => blockへの参照
+  private $extends = false; // extendsの場合のファイル名
 
   # template syntax constants
   const FILTER_SEPARATOR = '|';
@@ -358,35 +429,52 @@ class GTParser {
   }
 
   // 終了タグを探して、その位置を返す
-  private function find_closetag($t, &$spos, $closetag) {
-    if (($epos = strpos($t, $closetag, $spos)) === FALSE) {
+  private function find_closetag($t, &$spos, &$epos, $closetag) {
+    if (($fpos = strpos($t, $closetag, $spos)) === FALSE || $fpos >= $epos) {
       $this->errorStr = "タグが閉じられてないようです($closetagが見つかりません)。";
       return FALSE;
     }
-    return $epos;
+    return $fpos;
+  }
+
+  // endblockやendifやendforを探す
+  private function find_endtag($t, &$spos, &$epos) {
   }
 
   // {% %}の中身をパースして、GTNodeを返す。
   // extendsは頭に書かないといけない
-  private function parse_block(&$spos) {
+  private function parse_block(&$spos, &$epos) {
     $spos += 2;
-    if (($epos = $this->find_closetag($this->template, $spos, self::BLOCK_TAG_END))
+    if (($lpos = $this->find_closetag($this->template, $spos, $epos, self::BLOCK_TAG_END))
         === FALSE) {
       return FALSE;
     }
-    $in = $this->smart_split(substr($this->template, $spos, $epos - 2));
+    $in = $this->smart_split(substr($this->template, $spos, $lpos - $spos));
     echo 'inblock: '. $in[0] .'\n';
     switch ($in[0]) {
       case 'extends':
-        // FIXME: ループチェック
-        $node = new GTExtendsNode(nodelist, parent_name, parent_name_expr);
+        if ($this->extends !== FALSE) {
+          $this->errorStr = 'extendsは１つだけしか指定できません。';
+          return FALSE;
+        }
+        $this->extends = $in[1];
         break;
       case 'include':
-        // FIXME: ループチェック
         $node = new GTIncludeNode(template_name);
         break;
       case 'block': // endblock
-        $node = new GTBlockNode(name, nodelist, parent);
+        // TODO: filter block name
+        $blockname = $in[1];
+        if (array_key_exists($blockname, $this->block_dict)) {
+          // TODO: filtered block name print
+          $this->errorStr = '同じ名前のblockは１つだけしか指定できません。';
+          return FALSE;
+        }
+        // blockタグはネストがないので、そのまんまendblock検索
+        // FIXME FIXME koko
+        $nodelist = $this->_parse($lpos + 2, $epos);
+        $node = new GTBlockNode($blockname, $nodelist);
+        $this->block_dict[$blockname] = &$node; // reference
         break;
       case 'for': // endfor
         $node = new GTForNode(loopvar, sequence, reversed, nodelist_loop);
@@ -417,32 +505,32 @@ class GTParser {
         $node = new GTUnknownNode();
         break;
     }
-    $spos = $epos + 2;
+    $spos = $lpos + 2;
     return $node;
   }
 
   // {{ }}の中身をパース
-  private function parse_variable(&$spos) {
+  private function parse_variable(&$spos, &$epos) {
     $spos += 2;
-    if (($epos = $this->find_closetag($this->template, $spos, self::VARIABLE_TAG_END))
+    if (($lpos = $this->find_closetag($this->template, $spos, $epos, self::VARIABLE_TAG_END))
         === FALSE) {
       return FALSE;
     }
     // TODO: handle empty {{ }}
-    $fil = new GTFilterExpression(substr($this->template, $spos, $epos - $spos));
+    $fil = new GTFilterExpression(substr($this->template, $spos, $lpos - $spos));
     $node = new GTVariableNode($fil);
-    $spos = $epos + 2;
+    $spos = $lpos + 2;
     return $node;
   }
 
   // {# #}の中身をパース
-  private function parse_comment(&$spos) {
+  private function parse_comment(&$spos, &$epos) {
     $spos += 2;
-    if (($epos = $this->find_closetag($this->template, $spos, self::COMMENT_TAG_END))
+    if (($lpos = $this->find_closetag($this->template, $spos, $epos, self::COMMENT_TAG_END))
         === FALSE) {
       return FALSE;
     }
-    $spos = $epos + 2; // #}のあと
+    $spos = $lpos + 2; // #}のあと
   }
 
   public function parse_from_file($templatePath) {
@@ -451,12 +539,19 @@ class GTParser {
       return FALSE;
     }
     $this->template = $t;
-    return $this->_parse(0, strlen($t));
+    $nl = $this->_parse(0, strlen($t));
+    if ($this->extends !== FALSE) {
+      $nl = new GTExtendsNode($nl);
+    }
+    unset($this->template);
+    return new GTFile($nl, $this->extends);
   }
 
   public function parse($templateStr) {
     $this->template = $templateStr;
-    return $this->_parse(0, strlen($templateStr));
+    $nl = $this->_parse(0, strlen($templateStr));
+    unset($this->template);
+    return $nl;
   }
 
   private function _parse($spos, $epos) {
@@ -473,21 +568,21 @@ class GTParser {
       }
       switch (substr($this->template, $nspos, 2)) {
         case self::BLOCK_TAG_START:
-          if (($node = $this->parse_block($nspos)) === FALSE) {
+          if (($node = $this->parse_block($nspos, $epos)) === FALSE) {
             unset($this->template);
             return FALSE;
           }
           $nl->push($node);
           break;
         case self::VARIABLE_TAG_START:
-          if (($node = $this->parse_variable($nspos)) === FALSE) {
+          if (($node = $this->parse_variable($nspos, $epos)) === FALSE) {
             unset($this->template);
             return FALSE;
           }
           $nl->push($node);
           break;
         case self::COMMENT_TAG_START:
-          if (($node = $this->parse_comment($nspos)) === FALSE) {
+          if (($node = $this->parse_comment($nspos, $epos)) === FALSE) {
             unset($this->template);
             return FALSE;
           }
