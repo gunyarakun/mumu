@@ -562,7 +562,7 @@ class MuFilterExpression {
           $val = nl2br($val);
           break;
         case 'date':
-          $val = $val instanceof DateTime ? $val : new DateTime($value);
+          $val = $val instanceof DateTime ? $val : new DateTime($val);
           $val = $val->format($fil[1]);
           break;
         case 'join':
