@@ -243,6 +243,25 @@ class GTBlockNode extends GTNode {
 }
 
 class GTCycleNode extends GTNode {
+  private $cyclevars;
+  private $cyclevars_len;
+  private $variable_name;
+
+  function __construct($cyclevars, $variable_name = null) {
+    $this->cyclevars = $cyclevars;
+    $this->cyclevars_len = count($cyclevars);
+    $this->counter = -1;
+    $this->variable_name = $variable_name;
+  }
+
+  function _render($context) {
+    $this->counter++;
+    $value = $this->cyclevars[$this->counter % $this->cyclevars_len];
+    if ($this->variable_name) {
+      $context.set($this->variable_name, $value);
+    }
+    return $value;
+  }
 }
 
 class GTDebugNode extends GTNode {
@@ -536,16 +555,18 @@ class GTParser {
   }
 
   // 直近のendblockやendifやendforを探す
-  private function find_endtag(&$spos, &$epos, $endtag) {
+  private function find_endtag($spos, &$epos, $endtag) {
     // まず、直近のブロック開始タグを探して
-    if (($fpos = strpos($this->template, self::BLOCK_TAG_START, $spos)) !== FALSE
-        && $fpos < $epos) {
-      $fpos += 2;
-      if (($lpos = $this->find_closetag($fpos, $epos, self::BLOCK_TAG_END)) !== FALSE) {
+    while (($spos = strpos($this->template, self::BLOCK_TAG_START, $spos)) !== FALSE
+           && $spos < $epos) {
+      $spos += 2;
+      if (($lpos = $this->find_closetag($spos, $epos, self::BLOCK_TAG_END)) !== FALSE
+          && $lpos < $epos) {
         // その中身をtrimしてチェック
-        if (trim(substr($this->template, $fpos, $lpos - $fpos)) == $endtag) {
-          return array($fpos - 2, $lpos + 2);
+        if (trim(substr($this->template, $spos, $lpos - $spos)) == $endtag) {
+          return array($spos - 2, $lpos + 2);
         }
+        $spos = $lpos + 2;
       }
     }
     $this->errorStr = "block/if/forが閉じられていないようです。";
@@ -637,14 +658,28 @@ class GTParser {
         $spos = $blpos;
         break;
       case 'cycle':
-        $node = new GTCycleNode(cyclevars);
-        // TODO: implement
+        // TODO: implement namedCycleNodes
+        echo "guri1\n";
+        if (count($in) != 2) {
+          $this->errorStr = 'cycleにはパラメータが１つ必要です。';
+          return FALSE;
+        }
+        $cyclevars = explode(',', $in[1]);
+        echo "guri2\n";
+        if (count($cyclevars) == 0) {
+          $this->errorStr = 'cycleには,で区切られた文字列が必要です。';
+          return FALSE;
+        }
+        echo "guri3\n";
+        $node = new GTCycleNode($cyclevars);
+        $spos = $lpos + 2;
         break;
       case 'if': // else, endif
         $node = new GTIfNode(bool_exprs, nodelist_true, nodelist_false, link_type);
         break;
       case 'debug':
         $node = new GTDebugNode();
+        $spos = $lpos + 2;
         break;
       case 'now':
         if (count($in) != 2) {
@@ -657,6 +692,9 @@ class GTParser {
           return FALSE;
         }
         $node = new GTNowNode($param[1]);
+        $spos = $lpos + 2;
+        break;
+      case 'filter':
         $spos = $lpos + 2;
         break;
       default:
