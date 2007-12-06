@@ -194,14 +194,11 @@ class MuNodeList {
 }
 
 class MuErrorNode extends MuNode {
-  private $errorCode;
+  private $errorMsg;
   private $filename;
   private $linenumber;
   // TODO: php5 don't support array as const
-  private static $errorMsg = array(
-    'without_closetag_tag' => 'Cannot find %} !', // TODO: remove const
-    'without_closetag_variable' => 'Cannot find }} !',
-    'without_closetag_comment' => 'Cannot find #} !',
+  private static $errorMsgs = array(
     'invalidfilename_extends_tag' => 'Invalid filename specified with extends tag',
     'invalidfilename_include_tag' => 'Invalid filename specified with include tag',
     'multiple_extends_tag' => 'Only 1 extends tag are allowed to be specified',
@@ -229,20 +226,18 @@ class MuErrorNode extends MuNode {
     'invalidparam_widthratio_tag' => 'Invalid parameter(s) specified to widthratio tag',
     'invalidparam_filter_variable' => 'Invalid filter name',
     'unknown_tag' => 'Unknown tag is specified',
-    'unknown' => 'Unknown error. Maybe bugs in MuMu'
   );
   function __construct($errorCode, $filename, $linenumber) {
-    if (array_key_exists($errorCode, self::$errorMsg)) {
-      $this->errorCode = $errorCode;
+    if (array_key_exists($errorCode, self::$errorMsgs)) {
+      $this->errorMsg = self::$errorMsgs[$errorCode];
     } else {
-      $this->errorCode = 'unknown';
+      $this->errorMsg = $errorCode;
     }
     $this->filename = $filename;
     $this->linenumber = $linenumber;
   }
   public function _render($context) {
-    return 'file: '. $this->filename .' line: '. $this->linenumber .' '.
-           self::$errorMsg[$this->errorCode];
+    return 'file: '. $this->filename .' line: '. $this->linenumber .' '. $this->errorMsg;
   }
 }
 
@@ -733,10 +728,14 @@ class MuFilterExpression {
   }
 }
 
+class MuParserException extends Exception
+{
+}
+
 class MuParser {
   private $template;             // パース前のテンプレート文字列
   private $template_len;         // テンプレート文字列の長さ
-  public $templatePath;         // テンプレートのパス(あれば)
+  private $templatePath;         // テンプレートのパス(あれば)
   private $block_dict = array(); // blockの名前 => blockへの参照
   private $extends = false;      // extendsの場合のファイル名
   private $spos = 0;             // 現在パース中の位置
@@ -755,9 +754,10 @@ class MuParser {
   const SINGLE_BRACE_END = '}';
   // FIXME: タグの長さである定数2がパーサの中に散らばってます
 
-  function __construct($template) {
+  function __construct($template, $templatePath = null) {
     $this->template = $template;
     $this->template_len = strlen($template);
+    $this->templatePath = $templatePath;
   }
 
   // "や'でクオートされたものを除いてスペースで分割
@@ -864,12 +864,12 @@ class MuParser {
   // 終了タグ(#}とか)を探して、その位置を返す
   private function find_closetag($closetag) {
     if (($fpos = strpos($this->template, $closetag, $this->spos)) === false) {
-      return false;
+      throw new MuParserException('cannot find $closetag');
     }
     return $fpos;
   }
 
-  private function make_errornode($errorCode) {
+  public function make_errornode($errorCode) {
     // from $spos to linenumber
     // TODO: count on parsing
     $c = substr($this->template, 0, $this->spos);
@@ -894,9 +894,7 @@ class MuParser {
   // extendsは頭に書かないといけない
   private function parse_block() {
     $this->spos += 2;
-    if (($lpos = $this->find_closetag(self::BLOCK_TAG_END)) === false) {
-      return $this->make_errornode('without_closetag_tag');
-    }
+    $lpos = $this->find_closetag(self::BLOCK_TAG_END);
     $in = $this->smart_split(substr($this->template, $this->spos, $lpos - $this->spos));
     switch ($in[0]) {
       // TODO: 引数の数チェックを全般
@@ -955,11 +953,7 @@ class MuParser {
         }
         $this->spos = $lpos + 2;
         list($nodelist) = $this->_parse(array('endfor'));
-        if ($nodelist) {
-          $node = new MuForNode($in[1], $in[3], $reversed, $nodelist);
-        } else {
-          return false;
-        }
+        $node = new MuForNode($in[1], $in[3], $reversed, $nodelist);
         break;
       case 'cycle':
         // TODO: implement namedCycleNodes
@@ -1118,9 +1112,7 @@ class MuParser {
 
   private function parse_variable() {
     $this->spos += 2;
-    if (($lpos = $this->find_closetag(self::VARIABLE_TAG_END)) === false) {
-      return false;
-    }
+    $lpos = $this->find_closetag(self::VARIABLE_TAG_END);
     // TODO: handle empty {{ }}
     if (($fil = new MuFilterExpression(
                   substr($this->template, $this->spos, $lpos - $this->spos))) === false) {
@@ -1133,9 +1125,7 @@ class MuParser {
 
   private function parse_comment() {
     $this->spos += 2;
-    if (($lpos = $this->find_closetag(self::COMMENT_TAG_END)) === false) {
-      return false;
-    }
+    $lpos = $this->find_closetag(self::COMMENT_TAG_END);
     $this->spos = $lpos + 2;
   }
 
@@ -1143,15 +1133,24 @@ class MuParser {
     if (($t = file_get_contents($templatePath)) === false) {
       return false;
     }
-    $p = new MuParser($t);
-    $p->templatePath = $templatePath;
-    list($nl) = $p->_parse(array());
+    $p = new MuParser($t, $templatePath);
+    try {
+      list($nl) = $p->_parse(array());
+    } catch (MuParserException $e) {
+      $nl = new MuNodeList();
+      $nl->push($p->make_errornode($e->getMessage()));
+    }
     return new MuFile($nl, $p->block_dict, $p->extends, $templatePath);
   }
 
   static public function parse($templateStr) {
     $p = new MuParser($templateStr);
-    list($nl) = $p->_parse(array());
+    try {
+      list($nl) = $p->_parse(array());
+    } catch (MuParserException $e) {
+      $nl = new MuNodeList();
+      $nl->push($p->make_errornode($e->getMessage()));
+    }
     return new MuFile($nl, $p->block_dict);
   }
 
@@ -1164,12 +1163,15 @@ class MuParser {
 
   private function _parse($parse_until) {
     $nl = new MuNodeList();
-    $tspos = $this->spos;
+    $fspos = $tspos = $this->spos;
     while (true) {
       $this->spos = strpos($this->template, self::SINGLE_BRACE_START, $this->spos);
       if ($this->spos === false) {
         if (count($parse_until) != 0) {
-          return false;
+          $this->spos = $fspos; // for show correct lineno
+          throw new MuParserException('cannot find close tags (' .
+                                      implode(', ', $parse_until) .
+                                      ')');
         }
         $this->spos = $this->template_len;
         $this->add_textnode($nl, $tspos, $this->template_len);
@@ -1178,17 +1180,14 @@ class MuParser {
       switch (substr($this->template, $this->spos, 2)) {
         case self::BLOCK_TAG_START:
           $this->add_textnode($nl, $tspos, $this->spos);
-          if (($node = $this->parse_block()) === false) {
-            return false;
-          }
+          $node = $this->parse_block();
           $tspos = $this->spos;
           if (is_string($node)) {
             // close tag
             if (in_array($node, $parse_until)) {
               return array($nl, $node);
             } else {
-              // invalid close tag
-              return false;
+              throw new MuParserException('invalid close tag');
             }
           } elseif (isset($node)) {
             $nl->push($node);
@@ -1196,17 +1195,13 @@ class MuParser {
           break;
         case self::VARIABLE_TAG_START:
           $this->add_textnode($nl, $tspos, $this->spos);
-          if (($node = $this->parse_variable()) === false) {
-            return false;
-          }
+          $node = $this->parse_variable();
           $nl->push($node);
           $tspos = $this->spos;
           break;
         case self::COMMENT_TAG_START:
           $this->add_textnode($nl, $tspos, $this->spos);
-          if (($node = $this->parse_comment()) === false) {
-            return false;
-          }
+          $node = $this->parse_comment();
           $nl->push($node);
           $tspos = $this->spos;
           break;
