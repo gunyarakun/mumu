@@ -108,22 +108,44 @@ class GTNodeList {
 
 // 1つのテンプレートファイルをパースしたもの。
 // 外の世界に出るのがこいつ
-class GTFile {
-  private $nodelist;        // ファイルをパースしたNodeList
+class GTFile extends GTNode {
+  public $nodelist;        // ファイルをパースしたNodeList
   private $block_dict;      // nodelistの中にあるblock名 => GTBlockNode(の参照)
-  function __construct($nodelist, $block_dict) {
+  private $parent_tfile;    // extendsがある場合の親テンプレート
+  function __construct($nodelist, $block_dict, $parentPath = false) {
     $this->nodelist = $nodelist;
     $this->block_dict = $block_dict;
+    if ($parentPath) {
+      $p = new GTParser();
+      if (($this->parent_tfile = $p->parse_from_file($parentPath)) === FALSE) {
+        // TODO: エラー起こしたテンプレート名を安全に教えてあげる
+      }
+    }
   }
   public function render($raw_context) {
     return $this->_render(new GTContext($raw_context));
   }
   public function _render($context) {
-    return $this->nodelist->_render($context);
+    if ($this->parent_tfile) {
+      foreach ($this->block_dict as $blockname => $blocknode) {
+        if (($parent_block = $this->parent_tfile->get_block($blockname)) === FALSE) {
+          if ($this->parent_tfile->is_child()) {
+            $this->parent_tfile->append_block(&$blocknode);
+          }
+        } else {
+          $parent_block->parent = &$blocknode->parent;
+          $parent_block->add_parent(&$parent_block->nodelist);
+          $parent_block->nodelist = &$blocknode->nodelist;
+        }
+      }
+      return $this->parent_tfile->_render($context);
+    } else {
+      return $this->nodelist->_render($context);
+    }
   }
   public function get_block($blockname) {
-    if (array_key_exists($blockname, $block_dict)) {
-      return $nodelist[$block_dict[$blockname]];
+    if (array_key_exists($blockname, $this->block_dict)) {
+      return $this->block_dict[$blockname];
     } else {
       return false;
     }
@@ -132,12 +154,11 @@ class GTFile {
     // 孫で定義されたブロック名で、親には定義されていないが、
     // 親の親には定義されている場合のため、
     // 孫から親にブロックを移す
-
-    // こいつの型はGTExtendsNode
-    $nodelist[$extends_index]->append_block($blocknode);
+    $this->nodelist->push($blocknode);
+    $this->block_dict[$blocknode->name] = &$blocknode;
   }
   public function is_child() {
-    return is_numeric($extends_index);
+    return ($parent_tfile !== FALSE);
   }
 }
 
@@ -161,36 +182,6 @@ class GTVariableNode extends GTNode {
   }
 }
 
-class GTExtendsNode extends GTNode {
-  private $nodelist;
-  private $block_dict;
-  private $parent_tplfile;
-  function __construct($nodelist, $block_dict, $parentPath) {
-    // FIXME: セキュリティチェック、無限ループチェック
-    $this->nodelist = $nodelist;
-    $this->block_dict = $block_dict;
-    $p = new GTParser();
-    if (($this->parent_tplfile = $p->parse_from_file($parentPath)) === FALSE) {
-      // TODO: エラー起こしたテンプレート名を安全に教えてあげる
-    }
-  }
-
-  function _render($context) {
-    if ($parent_nodelist) {
-      $parent_is_child = $parent_tplfile->is_child();
-      $bidxs = $parent_tplfile->get_block_indexes();
-      foreach ($bidxs as $bidx) {
-      }
-    } else {
-      return 'extends error';
-    }
-  }
-
-  function append_block($blocknode) {
-    array_push($this->nodelist, $blocknode);
-  }
-}
-
 class GTIncludeNode extends GTNode {
   private $tplfile;
   function __construct($includePath) {
@@ -207,9 +198,9 @@ class GTIncludeNode extends GTNode {
 }
 
 class GTBlockNode extends GTNode {
-  private $name;
-  private $nodelist;
-  private $parent;
+  public $name;
+  public $nodelist;
+  public $parent;
 
   private $context; // for block.super
 
@@ -629,11 +620,8 @@ class GTParser {
     }
     $this->template = $t;
     $nl = $this->_parse(0, strlen($t));
-    if ($this->extends !== FALSE) {
-      $nl = new GTExtendsNode($nl);
-    }
     unset($this->template);
-    return new GTFile($nl, $this->block_dict);
+    return new GTFile($nl, $this->block_dict, $this->extends);
   }
 
   public function parse($templateStr) {
