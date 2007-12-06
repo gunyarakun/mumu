@@ -61,7 +61,9 @@ POSSIBILITY OF SUCH DAMAGE.
 // {% endifnotequal %}        : ifnotequalの終わり
 // {% spaceless %}            : タグの間のスペースを詰めます
 // {% endspaceless %}         : spacelessの終わり
-// {% templatetag tagname %}  : templateの構成に使われる文字字体を出力します
+// {% templatetag tagname %}  : templateの構成に使われる文字字体を出力しますS
+// {% comment %}              : コメントです。出力されません。
+// {% endcomment %}           : コメントの終わりです。
 // {# comment #}              : コメント
 
 // パイプ
@@ -87,7 +89,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 // 実装メモ
 // FIXMEを全部直すように。
-// キャッシュ機構とか欲しいね。パース済みの構造をシリアライズする？
+// キャッシュ機構とか欲しいね。パース済みの構           : コメントの終わりです。造をシリアライズする？
 
 class MuUtil {
   public static function getpath($basepath, $path) {
@@ -1044,6 +1046,11 @@ class MuParser {
         $this->spos = $lpos + 2;
         $node = new MuTemplateTagNode($in[1]);
         break;
+      case 'comment':
+        $this->spos = $lpos + 2;
+        // TODO: not parse but skip
+        $this->_parse(array('endcomment'));
+        break;
       case 'endblock':
       case 'else':
       case 'endif':
@@ -1052,6 +1059,7 @@ class MuParser {
       case 'endifequal':
       case 'endifnotequal':
       case 'endspaceless':
+      case 'endcomment':
         $node = $in[0]; // raw string
         $this->spos = $lpos + 2;
         break;
