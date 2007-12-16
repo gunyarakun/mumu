@@ -68,7 +68,7 @@ class MuUtil {
     }
     return true;
   }
-  public static function validate_uri($uri, $scheme) {
+  public static function validate_uri($uri, $scheme, $localcheck = false) {
     // use preg_quote('$-_.+!*\'(),{}|\\^~[]`<>#%";/?:@&=', '/');
     if (preg_match('/[^A-Za-z0-9\\$-_\\.\\+\\!\\*\'\\(\\),\\{\\}\\|\\\\\\^~\\[\\]`\\<\\>#%";\\/\\?\\:@&\\=]/', $uri, $match) == 1) {
       return false;
@@ -77,6 +77,19 @@ class MuUtil {
     if (!in_array($u['scheme'], $scheme) ||
         empty($u['host'])) {
       return false;
+    }
+    if ($localcheck) {
+      if (($ip = gethostbyname($u['host'])) == $u['host']) {
+        return false;
+      }
+      $in = ip2long($ip);
+      # TODO: speed up
+      if (($in >= ip2long('192.168.0.0') && $in <= ip2long('192.168.255.255')) ||
+          ($in >= ip2long('10.0.0.0') && $in <= ip2long('10.255.255.255')) ||
+          ($in >= ip2long('172.16.0.0') && $in <= ip2long('172.31.255.255')) ||
+          $in == ip2long('127.0.0.1')) {
+        return false;
+      }
     }
     return true;
   }
