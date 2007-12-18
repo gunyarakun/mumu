@@ -95,6 +95,66 @@ class MuUtil {
   }
 }
 
+// Pager
+class MuPager {
+  function __construct($param) {
+    $this->current_page = $param['current_page'];
+    $this->current_page = $this->current_page ? $this->current_page : 1;
+    $this->per_page = $param['per_page'];
+  }
+  function get_range() {
+    $c = $this->current_page;
+    $pp = $this->per_page;
+
+    $start = ($c - 1) * $pp + 1;
+    $end = $c * $pp;
+
+    return array('start' => $start,
+                 'end' => $end,
+                 'offset' => $start - 1,
+                 'count' => $end - $start + 1
+                 );
+  }
+
+  function get_pages($param) {
+    $total = $param['total_items'];
+    $d = $param['delta'];
+    $c = $this->current_page;
+    $pp = $this->per_page;
+
+    $totalp = ceil(($total - 1) / $pp);
+
+    $r = array();
+    $r['current'] = $c;
+
+    if ($c > 1) {
+      $r['prev'] = $c - 1;
+    }
+    if ($c > ($d + 1)) {
+      $r['first'] = 1;
+      $st = $c - $d;
+    } else {
+      $st = 1;
+    }
+    if (($c + $d) < $totalp) {
+      $r['last'] = $totalp;
+      $ed = $c + $d;
+    } else {
+      $ed = $totalp;
+    }
+    if ($c < $totalp) {
+      $r['next'] = $c + 1;
+    }
+
+    $r['pages'] = array();
+    for ($i = $st ; $i <= $ed; $i++) {
+      // enter current page or not
+      $r['pages'][] = $i;
+    }
+    return $r;
+  }
+}
+
 class MuInternal {
   public static function getpath($basepath, $path) {
     $basepath = realpath($basepath);
