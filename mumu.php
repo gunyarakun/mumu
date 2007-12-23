@@ -122,7 +122,7 @@ class MuPager {
     $c = $this->current_page;
     $pp = $this->per_page;
 
-    $totalp = ceil(($total - 1) / $pp) + 1;
+    $totalp = floor(($total - 1) / $pp) + 1;
 
     $r = array();
     $r['current'] = $c;
