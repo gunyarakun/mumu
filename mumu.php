@@ -79,16 +79,18 @@ class MuUtil {
       return false;
     }
     if ($localcheck) {
-      if (($ip = gethostbyname($u['host'])) == $u['host']) {
-        return false;
-      }
-      $in = ip2long($ip);
-      # TODO: speed up
-      if (($in >= ip2long('192.168.0.0') && $in <= ip2long('192.168.255.255')) ||
-          ($in >= ip2long('10.0.0.0') && $in <= ip2long('10.255.255.255')) ||
-          ($in >= ip2long('172.16.0.0') && $in <= ip2long('172.31.255.255')) ||
-          $in == ip2long('127.0.0.1')) {
-        return false;
+      if (($in = ip2long($ip)) === FALSE) {
+        if (($ip = gethostbyname($u['host'])) == $u['host']) {
+          return false;
+        }
+      } else {
+        # TODO: speed up
+        if (($in >= ip2long('192.168.0.0') && $in <= ip2long('192.168.255.255')) ||
+            ($in >= ip2long('10.0.0.0') && $in <= ip2long('10.255.255.255')) ||
+            ($in >= ip2long('172.16.0.0') && $in <= ip2long('172.31.255.255')) ||
+            $in == ip2long('127.0.0.1')) {
+          return false;
+        }
       }
     }
     return true;
