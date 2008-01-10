@@ -95,6 +95,40 @@ class MuUtil {
     }
     return true;
   }
+  public static function absolute_uri($base, $ref) {
+    $b = parse_url($base);
+    $uri = $b['scheme'].'://';
+    if (isset($b['user'])) {
+      $uri .= $b['user'];
+      if (isset($b['pass'])) {
+        $uri .= ':'. $b['pass'];
+      }
+      $uri .= '@';
+    }
+    $uri .= $b['host'];
+    if (isset($b['port'])) {
+      $uri .= ':'. $b['port'];
+    }
+    $paths = explode('/', $b['path']);
+    if ($ref[0] == '/') {
+      return $uri. $ref;
+    }
+    $refs = explode('/', $ref);
+    foreach ($refs as $r) {
+      switch ($r) {
+        case '':
+        case '.':
+          break;
+        case '..':
+          array_pop($paths);
+          break;
+        default:
+          $paths[] = $r;
+      }
+    }
+    $uri .= implode('/', $paths);
+    return $uri;
+  }
 }
 
 // Pager
