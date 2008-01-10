@@ -560,6 +560,8 @@ class MuForNode implements MuNode {
     }
     if (!is_array($values)) {
       $values = array($value);
+    } else {
+      $values = array_values($values);
     }
     if ($this->reversed) {
       $values = array_reverse($values);
