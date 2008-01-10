@@ -568,7 +568,8 @@ class MuForNode implements MuNode {
     }
     $len_values = count($values);
     $rnodelist = array();
-    for ($i = 0; $i < $len_values; $i++) {
+    $i = 0;
+    foreach ($values as $val) {
       $context->set('forloop', array(
         'counter0' => $i,
         'counter' => $i + 1,
@@ -578,8 +579,9 @@ class MuForNode implements MuNode {
         'last' => ($i == ($len_values - 1)),
         'parentloop' => $parentloop
       ));
-      $context->set($this->loopvar, $values[$i]);
+      $context->set($this->loopvar, $val);
       $rnodelist[] = $this->nodelist_loop->_render($context);
+      $i++;
     }
     $context->pop();
     return implode('', $rnodelist);
