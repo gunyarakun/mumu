@@ -114,6 +114,7 @@ class MuUtil {
       return $uri. $ref;
     }
     $refs = explode('/', $ref);
+    array_pop($paths);
     foreach ($refs as $r) {
       switch ($r) {
         case '':
