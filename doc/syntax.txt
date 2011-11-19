@@ -1,0 +1,277 @@
+テンプレートファイルの書き方
+============================
+
+よく使うもの
+値の置換
+
+{{ value }}
+のように記述すると、変数名がvalueの変数の中身で置換を行うことができます。
+
+{{ value.name }}
+のように記述すると、PHPでいうところの$value['name']の中身で置換を行うことができます。
+
+{{ "100" }} や {{ "文字列" }}
+のように記述すると、ダブルクオートの中身がそのまま出力されます。
+
+値にフィルタをかける
+
+値はフィルタというものを通して加工することができます。
+
+{{ value|urlencode }}
+のように記述すると、valueの中身をurlencodeしたもので置換されます。
+
+フィルタは複数指定することができます。
+
+{{ value|escape|linebreaksbr|urlize }}
+のように記述すると、
+
+<>&'"をhtml用にエスケープしたあと、
+改行を<br />に変換し、
+さらに、http://xxxx/のようなURLにリンクを付与します。
+フィルタ一覧ページにフィルタの一覧があります。 代表的なフィルタを紹介します。
+
+addslashes : バックスラッシュを置換します。
+length : 変数の長さを取得します。
+escape : <>&'"をhtml用にエンコードします。
+stringformat:"format" : 指定したフォーマット(printfのフォーマット)で変数をフォーマットします。
+urlencode : urlエンコードします。
+urlize : http://xxxx/のようなURLにリンクを付与します。
+linebreaksbr : 改行を<br />に置換します。
+date:"format" : 指定したフォーマット(date_formatのフォーマット)で日付/時刻をフォーマットします。
+join:"str" : 配列の値を、strではさんで連結します
+PHP側でわざわざhtmlspecialchars()を呼んだりする必要がありません。
+
+条件によって表示内容を変える
+
+{% if value %}
+ valueが真のときの内容
+{% endif %}
+のように記述すると、valueが「空でない値もしくは真」のときにのみ中身を出力します。
+
+{% if value %}
+ valueが真のときの内容
+{% else %}
+ valueが真でないときの内容
+{% endif %}
+のように記述すると、valueが「空でない値もしくは真」のときと、そうでないときで出力内容を変えることができます。
+
+ifの条件それぞれには、notをつけることができます。notは、直後に指定されたvalueの条件を逆転させます。また、andやorで条件をつなぐことができます。ただし、andとorを混ぜて使うことはできません。
+
+使える表現と使えない表現をまとめると、以下のようになります。
+
+○ : {% if not val1 and val2 %}
+○ : {% if not val1 and not val2 %}
+○ : {% if val1 or not val2 %}
+○ : {% if not val1 or not val2 %}
+○ : {% if not val1 and val2 and not val3 %}
+× : {% if not val1 and val2 or not val3 %}
+そのほかにも、値の内容が同じかどうかによって出力内容を変えることができます。
+
+{% ifequal var1 var2 %}
+ var1とvar2が一緒のときの内容
+{% else %}
+ var1とvar2が違うときの内容
+{% endifequal %}
+のように記述すると、var1とvar2との内容が同じか同じでないかで出力内容を変えることができます。
+
+例えば、ある値が1のときのみに表示される部分は、
+
+{% ifequal value "1" %}
+{% endifequal %}
+のように記載します。
+
+否定形で、
+
+{% ifnotequal var1 var2 %}
+ var1とvar2が違うときの内容
+{% else %}
+ var1とvar2が一緒のときの内容
+{% endifnotequal %}
+と記述することもできます。
+
+同じ内容を何度も表示する
+
+{% for item in items %} 繰り返しの内容 {% endfor %}
+のように記述すると、配列変数itemsの中の全ての要素に対して、繰り返しの内容を出力します。 繰り返しの内容では、itemsの要素を変数itemとして参照できます。
+
+繰り返しの内容では、以下の特殊な変数が利用できます。
+
+forloop.counter : 現在のループ回数番号 (1 から数えたもの)
+forloop.counter0 : 現在のループ回数番号 (0 から数えたもの)
+forloop.revcounter : 末尾から数えたループ回数番号 (1 から数えたもの)
+forloop.revcounter0 : 末尾から数えたループ回数番号 (0 から数えたもの)
+forloop.first : 最初のループであれば true になります
+forloop.last : 最後のループであれば true になります
+forloop.parentloop : 入れ子のループの場合、一つ上のループを表します
+例えば、items = array('foo', 'bar', 'baz')を
+
+{% for item in items %}
+  {% if forloop.first %}初めての{% endif %}
+  {% if forloop.last %}最後の{% endif %}
+  {{ item }}は{{ forloop.counter }}番目です。
+{% endfor %}
+というテンプレートに適用すると、
+
+初めてのfooは1番目です。
+barは2番目です。
+最後のbazは3番目です。
+という出力を得ることができます（改行を無視した場合）。
+
+{% for item in items reversed %} 繰り返しの内容 {% endfor %}
+とreversedをつけることによって、itemsの中身を逆順に取り出すことができます。
+
+いくつかの値を繰り返す
+
+{% cycle foo,bar,baz %}
+と書くと、値を出力するたびにfoo, bar, bazを順繰りに出力します。 値はカンマ区切りで、スペースを含むことはできません。
+
+例えば、items = array('line1', 'line2', 'line3', 'line4', 'line5')とした場合、
+
+{% for item in items %}
+  <div class="{{ cycle oddline,evenline }}>{{ item }}</div>
+{% endfor %}
+というテンプレートに適用すると、
+
+<div class="oddline">line1</div>
+<div class="evenline">line2</div>
+<div class="oddline">line3</div>
+<div class="evenline">line4</div>
+<div class="oddline">line5</div>
+という出力を得ることができます。
+
+テーブルの背景色を行ごとに変えたりするのに便利です。
+
+フィルタを適用する
+
+{% filter filter1|filter2 %}
+ フィルタの適用対象
+{% endfilter %}
+と記述すると、フィルタの適用対象にフィルタを適用して出力します。
+
+値の一覧を表示する
+
+{% debug %}
+と書くと、渡した変数の一覧を表示します。HTMLに出力する場合には、
+
+{% filter escape|linebreaksbr %}
+  {% debug %}
+{% endfilter %}
+とするとよいでしょう。
+
+現在の日付を表示する
+
+{% now "format" %}
+と記述すると、formatで指定された形式で現在の日付を表示します。
+
+formatは以下のサイト等を参考にしてください。
+
+http://jp2.php.net/date
+複数の値のうち、左から見ていって空でないはじめの一個を出力する
+
+{% firstof var1 var2 var3 %}
+と記述すると、var1・var2・var3の順番で値が空でないかどうかのチェックを行い、 空でなければそれだけを出力します。
+
+{% if var1 %}
+{{ var1 }}
+{% else %}{% if var2 %}
+{{ var2 }}
+{% else %}{% if var3 %}
+{{ var3 }}
+{% endif %}{% endif %}{% endif %}
+と同じ効果を持ちます。短く書けますよ。
+
+他のテンプレートファイルを取り込む
+
+{% include "ファイル名" %} と記述すると、ファイル名の内容を読み込んで出力します。
+
+以下に記述するextendsが使えるような場合には、extendsを使うことをおすすめします。
+
+他のテンプレートファイルを拡張する
+
+{% extends "親テンプレートファイル名" %} と記述すると、親テンプレートファイル名の内容を出力します。 ただし、親テンプレートファイルの中の{% block block名 %}から{% endblock %}の部分で、 自分のテンプレートファイルで同じblock名のblockが定義されている場合には、 自分のテンプレートファイルのblockを出力します。
+
+例えば、以下の内容のtemplate1.htmlというファイルがあったとします。
+
+<html>
+ <head><title>{% block title %}俺のサイト{% endblock %}</title></head>
+ <body>
+   <div class="header">へっだへっだ</div>
+   <div class="body">{% block body %}もともとの内容{% endblock %}</div>
+   <div class="footer">(c) 2004-{% now "Y" %} Brazil, Inc.</div>
+ </body>
+</html>
+以下の内容のtemplate2.htmlというファイルもあったとします。
+
+{% extends "template1.html" %}
+<html>
+ <body>
+  ここは表示されません。
+  {% block title %}{{ block.super }} - 掲示板{% endblock %}
+  {% block body %}Brazil掲示板です{% endblock %}
+ </body>
+</html>
+ここで、template2.htmlのテンプレートの出力は以下のようになります。
+
+<html>
+ <head><title>俺のサイト - 掲示板</title></head>
+ <body>
+   <div class="header">へっだへっだ</div>
+   <div class="body">Brazil掲示板です</div>
+   <div class="footer">(c) 2004-2007 Brazil, Inc.</div>
+ </body>
+</html>
+上記のように、それぞれのテンプレートファイルはhtmlとして単体でブラウザで確認できる状態を保ちつつも、 テンプレートの共通部分を１つのファイルにまとめることができます。
+
+{{ block.super }}
+は親テンプレートでの同名blockの内容を返す特殊変数です。
+
+{% extends "filename" %}が入っているテンプレートの中で、{% block block名 %} {% endblock %}で囲われていない部分は出力されません。
+
+あんまり使わないもの
+HTML/XMLタグの間のスペースを詰める
+
+{% spaceless %}
+     <p>   <a href="http://www.example.com/">   これは例です。 </a>  </p>
+
+{% endspaceless %}
+のように記述すると、
+
+<p><a href="http://www.example.com/">   これは例です。 </a></p>
+とタグとタグの間のスペースを詰めて出力します。
+
+テンプレートで使う文字列を出力する
+
+{%や%}などはテンプレート内で特別な意味を持つため、これ自身をテンプレートに記述することはできません。
+
+{% templatetag openblock %}
+と記述すると、"{%"を出力することができます。
+
+openblock以外にも、以下の値を指定することができます。
+
+openblock {%
+closeblock  %}
+openvariable  {{
+closevariable }}
+openbrace {
+closebrace  }
+opencomment {#
+closecomment  #}
+割合の値を表示する
+
+{% widthratio value max_value mul %}
+と記述すると、valueをmax_valueで割ったものをmul倍したものを整数に丸めた値を得ることができます。 mulには数字しか指定できません。
+
+例えば、棒グラフを表示するときに、以下のような書き方ができます。
+
+<img src="bar.gif" height="10" width="{% widthratio this_value max_value 100 %}" />
+valueとmax_valueにはフィルタも使えます。
+
+表に出したくないコメントを記述する
+
+{# コメント #}
+と記述した場合、何も出力されません。 表に出したくないコメントを書く場合に便利です。
+
+{% comment %}
+ コメント
+{% endcomment %}
+という書き方もできますよ。

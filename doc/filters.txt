@@ -1,0 +1,166 @@
+フィルタ一覧
+============
+
+参考文献1 : http://michilu.com/django/doc-ja/templates/#id14
+参考文献2 : http://d.hatena.ne.jp/kano-e/20070829/1188398311
+よく使うもの
+addslashes
+
+バックスラッシュを置換します。
+
+length
+
+変数の長さを取得します。
+
+escape
+
+<>&'"をhtml用にエンコードします。
+
+stringformat:"format"
+
+指定したフォーマット(printfのフォーマット)で変数をフォーマットします。
+
+urlencode
+
+urlエンコードします。
+
+linebreaksbr
+
+改行を<br />に置換します。
+
+date:"format"
+
+指定したフォーマット(date_formatのフォーマット)で日付/時刻をフォーマットします。
+
+join:"str"
+
+配列の値を、strではさんで連結します
+
+注意！ここから下のフィルタはテストしていません。じっくりテストしていきます。
+cut
+
+指定した文字列を取り除きます。
+
+{{ "test"|cut:"te" }} → st
+default
+
+変数が空のときに別の値に置換します。
+
+a = array('gunya' => 'ra');
+{{ gunya|default:"ri" }} → ra
+{{ gunyo|default:"ri" }} → ri
+今たぶんバグってます
+
+default_if_none
+
+変数がnullのときに別の値に置換します。
+
+a = array('gunya' => 'null);
+{{ gunya|default:"ri" }} → ri
+{{ gunyo|default:"ri" }} → 
+今たぶんバグってます
+
+divisibleby
+
+指定した数で割り切れるかどうかチェックします。
+
+{{ 1|divisibleby:3 }} → false
+{{ 2|divisibleby:3 }} → false
+{{ 3|divisibleby:3 }} → true
+first
+
+配列の一番先頭を取り出します。
+
+senna = array('speed', 'quality', 'embeddable');
+{{ senna|first }} → speed
+fix_ampersands
+
+&を&amp;に置換します。ただし、有効な実体参照の先頭の&は置換しません。
+
+{{ "t&e"|fix_ampersands }} → t&amp;e
+{{ "&quot;&#34"|fix_ampersands }} → &quot;&#34
+floatformat
+
+小数を指定した小数点以下の桁数で表示します。 指定しない場合は小数点以下２桁で表示します。
+
+正の桁数を指定した場合には、指定桁数の数値を0であっても必ず出力します。 負の桁数を指定した場合には、指定桁数以降の数値が0の場合は出力しません。
+
+{{ 3|floatformat }} → 3
+{{ 3.14159|floatformat }} → 3.14
+{{ 3.14159|floatformat:2 }} → 3.14
+{{ 3.14159|floatformat:-2 }} → 3.14
+{{ 3.14159|floatformat:10 }} → 3.1415900000
+{{ 3.14159|floatformat:-10 }} → 3.14159
+あんまり使わないもの
+add
+
+足し算をします。
+
+{{ 1|add:2 }} → 3
+capfirst
+
+頭文字を大文字にします。
+
+{{ "test"|capfirst }} → Test
+center
+
+指定文字数のサイズで空白を使って中央寄せします。
+
+*{{ "test"|center:20 }}* → *        test        *
+filesizeformat
+
+ファイルサイズを読みやすくします。
+
+{{ 648|filesizeformat }} → 648 bytes
+{{ 30192|filesizeformat }} → 29.5 KB
+{{ 5901248|filesizeformat }} → 5.6 MB
+{{ 1395901248|filesizeformat }} → 1.3 GB
+まだ解説を書いていないが実装はしたもの
+get_digit
+
+length_is
+
+linebreaks
+
+linenumbers
+
+ljust
+
+lower
+
+make_list
+
+pprint
+
+random
+
+removetags
+
+rjust
+
+slice
+
+striptags
+
+title
+
+truncatewords
+
+upper
+
+wordcount
+
+wordwrap
+
+yesno
+
+urlize
+
+urlizetrunc
+
+実装予定だが実装していないもの
+dictsort
+
+dictsortreversed
+
+unordered_list
