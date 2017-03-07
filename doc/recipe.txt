@@ -1,0 +1,38 @@
+MuMuレシピ
+==========
+
+みんながやりたそうなことの手順をまとめて書いておくページです。
+
+デザイナ向け(テンプレート側)
+「{{」とか「{%」そのものを出したいよ！！
+
+{% templatetag openvariable %}
+で「{{」が、
+
+{% templatetag openblock %}
+で「{%」が出せまーす！！
+
+詳しくは、テンプレートファイルの書き方のtemplatetagの項を見てね。
+
+プログラマ向け(PHP側)
+MySQLデータベースから取ってきた情報をそのまま入れたい
+
+mysql_fetch_arrayや、PDOのfetch(PDO::FETCH_ASSOC)、PEAR::MDB2のfetchRow(MDB2_FETCHMODE_ASSOC)などを使うとそのままMuMuにあてはめられる配列をゲットできて便利です。
+
+PDOやPEAR::MDB2でデータベースから取ってきた値に新しい情報を付与してあてはめたい
+
+PDOやPEAR::MDB2には、fetchAllという便利なメソッドがあります。 クエリの結果すべてを配列に入れてくれます。楽ですね。
+
+それをそのままMuMuに渡すこともできるのですが、 ちょっと加工した情報を渡したりしたいですよね。
+
+例えば、こんな感じのコードでそういうことができます。
+
+<?php
+$sth = $dbh->prepare("SELECT name, colour FROM fruit");
+$sth->execute();
+$results = $sth->fetchAll(PDO::FETCH_ASSOC);
+for ($results as &$rec) {
+  $rec['fullname'] = $rec['firstname'] . $rec['lastname'];
+}
+?>
+$recの前の&がポイント。これで、PDOが返してきた配列の内容の追加や上書きをすることができます。

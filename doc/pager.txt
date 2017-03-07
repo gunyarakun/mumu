@@ -1,0 +1,60 @@
+ページャ作成支援
+================
+
+MuMuには、MuPagerというページャ作成支援クラスがあります。
+
+以下のドキュメントはまだ不親切です。 随時加筆します。
+
+●使い方
+$pg = new MuPager(array(
+  'current_page' => 現在のページ数,
+  'per_page' => ページごとのitem数,
+));
+
+// 現在のページの以下のデータを取得
+// start:先頭のアイテム数
+// end:末尾のアイテム数
+// offset:先頭のアイテム数 - 1(MySQLのLIMITのoffset用)
+// count:現在のページにあるアイテム数(per_pageと一緒、MySQLのLIMIT用)
+$limit = $pg->get_range();
+
+// ページャ用のデータを生成
+$pager = $pg->get_pages(array(
+  'total_items' => 総件数,
+  'delta' => 現在のページの前後何ページのリンクを表示するか,
+));
+
+●テンプレートのソース
+ <div class="pager">
+ {% if pager.prev %}
+ <A href="/index.php/{{lang}}/{{pager.prev}}" class="nextprev">
+ &#171; prev
+ </A>
+ {% endif %}
+ {% if pager.first %}
+   <A href="/index.php/{{lang}}/{{pager.first}}">
+   {{ pager.first }}
+   </A>
+   <span>....</span>
+ {% endif %}
+ {% for p in pager.pages %}
+   {% ifequal p pager.current %}
+   <span class="current">{{p}}</span>
+   {% else %}
+   <A href="/index.php/{{lang}}/{{p}}" >
+   {{p}}
+   </A>
+   {% endifequal %}
+ {% endfor %}
+ {% if pager.last %}
+   <span>....</span>
+   <A href="/index.php/{{lang}}/{{pager.last}}">
+   {{ pager.last }}
+   </A>
+ {% endif %}
+ {% if pager.next %}
+ <A href="/index.php/{{lang}}/{{pager.next}}" class="nextprev">
+ next &#187;
+ </A>
+ {% endif %}
+ </div>
